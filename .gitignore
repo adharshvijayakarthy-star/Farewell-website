@@ -1,0 +1,8 @@
+node_modules/
+.next/
+.next-dev/
+out/
+.sites-runtime/
+*.tsbuildinfo
+.env*
+qa/

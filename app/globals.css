@@ -1,0 +1,717 @@
+@import "@fontsource-variable/fraunces/full.css";
+@import "@fontsource-variable/fraunces/full-italic.css";
+@import "@fontsource/manrope/latin-400.css";
+@import "@fontsource/manrope/latin-600.css";
+:root {
+  color-scheme: dark;
+  --pearl: #f1e9e0;
+  --gold: #d9c6a0;
+  --navy: #060916;
+  --serif: "Fraunces Variable", Georgia, serif;
+  --sans: "Manrope", Arial, sans-serif;
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  background: var(--navy);
+  color: var(--pearl);
+  font-family: var(--sans);
+}
+html {
+  scroll-behavior: auto;
+}
+body {
+  overflow-x: hidden;
+}
+button {
+  font: inherit;
+}
+button:focus-visible,
+select:focus-visible {
+  outline: 2px solid #e0d3ac;
+  outline-offset: 8px;
+}
+main:focus {
+  outline: none;
+}
+button {
+  touch-action: manipulation;
+}
+.experience-fixed {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 55%, #242448, #060916 65%);
+}
+.experience-fixed > div:first-child {
+  position: absolute !important;
+  inset: 0;
+}
+.film-grain {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0.055;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Cpath fill='%23fff' filter='url(%23n)' opacity='.5' d='M0 0h180v180H0z'/%3E%3C/svg%3E");
+}
+.vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 38%,
+    #02040c99 100%
+  );
+}
+.edge-mark {
+  position: absolute;
+  top: 28px;
+  left: 36px;
+  color: #d0c9ae;
+  font-size: 23px;
+}
+.ticket-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  perspective: 1100px;
+  transition: opacity 0.5s;
+}
+.ticket {
+  position: relative;
+  width: min(650px, 75vw);
+  height: 322px;
+  display: flex;
+  padding: 0;
+  border: 1px solid #d9dbf799;
+  border-radius: 15px;
+  color: #272539;
+  cursor: pointer;
+  text-align: left;
+  transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) rotateZ(-7deg);
+  background: linear-gradient(
+    125deg,
+    #f0e3cc 0%,
+    #dbe1f6 20%,
+    #bcb4e0 34%,
+    #f7e2da 49%,
+    #d8eedd 64%,
+    #c5c9ee 81%,
+    #e9e0cb 100%
+  );
+  box-shadow:
+    0 0 0 5px #b6bedd0a,
+    0 0 100px #8284dc24,
+    10px 40px 80px #0008,
+    inset 0 0 40px #fff8;
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.4s;
+  animation:
+    materialize 1.8s ease both,
+    ticket-float 9s ease-in-out 1.8s infinite;
+}
+.ticket:hover {
+  box-shadow:
+    0 0 0 5px #b6bedd12,
+    0 0 110px #a091ef45,
+    10px 40px 80px #0008,
+    inset 0 0 40px #fff8;
+}
+.ticket:before {
+  content: "";
+  position: absolute;
+  inset: 10px;
+  border: 1px solid #56516a50;
+  border-radius: 7px;
+  pointer-events: none;
+}
+.ticket:after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    115deg,
+    transparent 15%,
+    #fff6 40%,
+    transparent 65%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 9s ease-in-out infinite;
+  pointer-events: none;
+}
+.ticket-main {
+  position: relative;
+  padding: 32px 38px 24px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.ticket-brand {
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  font-weight: 600;
+}
+.ticket-emblem {
+  position: absolute;
+  right: 32px;
+  top: 27px;
+  font-family: var(--serif);
+  font-size: 40px;
+}
+.ticket-title {
+  font-family: var(--serif);
+  font-size: 67px;
+  line-height: 0.83;
+  letter-spacing: -0.045em;
+  font-weight: 500;
+}
+.ticket-title em {
+  font-weight: 400;
+  font-size: 0.86em;
+}
+.ticket-bottom {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  font-weight: 600;
+}
+.ticket-stub {
+  width: 102px;
+  border-left: 1px dashed #57516c70;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-around;
+  padding: 20px 8px;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  position: relative;
+}
+.ticket-stub:before,
+.ticket-stub:after {
+  content: "";
+  position: absolute;
+  background: #080c1b;
+  width: 20px;
+  height: 20px;
+  border-radius: 100%;
+  left: -10px;
+}
+.ticket-stub:before {
+  top: -11px;
+}
+.ticket-stub:after {
+  bottom: -11px;
+}
+.stub-type {
+  writing-mode: vertical-rl;
+  font-size: 10px;
+  letter-spacing: 0.25em;
+}
+.barcode {
+  width: 48px;
+  height: 31px;
+  background: repeating-linear-gradient(
+    90deg,
+    #48445b 0 1px,
+    transparent 1px 3px,
+    #48445b 3px 5px,
+    transparent 5px 7px
+  );
+  opacity: 0.7;
+}
+.ticket-hint {
+  position: absolute;
+  bottom: 16%;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  color: #b5b3c8;
+}
+.ticket-hint span {
+  margin-left: 15px;
+  color: var(--gold);
+}
+.ticket-orbit {
+  position: absolute;
+  width: 820px;
+  height: 480px;
+  border: 1px solid #c0bbef18;
+  border-radius: 50%;
+  transform: rotate(-24deg);
+  pointer-events: none;
+}
+.ticket-orbit:after {
+  content: "✧";
+  position: absolute;
+  right: 6%;
+  top: 14%;
+  font-size: 24px;
+  color: var(--gold);
+}
+.entering .ticket {
+  animation: enter-ticket 1.3s cubic-bezier(0.8, 0, 0.9, 0.4) both;
+}
+.entering .ticket-hint {
+  opacity: 0;
+}
+.copy-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.scene-copy {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 7vh 8vw;
+  will-change: opacity, transform;
+  text-shadow: 0 2px 35px #030615cc;
+}
+.scene-copy p {
+  white-space: pre-line;
+  font-family: var(--serif);
+  font-size: clamp(23px, 2.25vw, 35px);
+  line-height: 1.4;
+  margin: 18px 0;
+}
+.scene-copy h1,
+.scene-copy h2,
+.scene-copy blockquote {
+  font-family: var(--serif);
+  font-weight: 400;
+  margin: 0;
+}
+.scene-copy .eyebrow {
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  margin: 0 0 30px;
+}
+.copy-title h1 {
+  font-size: clamp(80px, 15vw, 235px);
+  letter-spacing: -0.05em;
+  line-height: 0.79;
+  display: flex;
+  flex-direction: column;
+}
+.copy-title h1 em {
+  font-size: 0.81em;
+  font-weight: 400;
+  margin-top: 10px;
+}
+.copy-title {
+  padding-bottom: 12vh;
+}
+.copy-star {
+  color: var(--gold);
+  font-size: 24px;
+  margin: 24px;
+}
+.copy-farewell {
+  align-items: flex-start;
+  text-align: left;
+  padding-left: 33vw;
+}
+.copy-farewell h2 {
+  font-size: clamp(28px, 3.2vw, 49px);
+}
+.copy-farewell p {
+  font-size: clamp(22px, 1.8vw, 29px);
+}
+.copy-farewell .copy-star {
+  margin-left: 0;
+}
+.copy-promise h2 {
+  max-width: 1100px;
+  font-size: clamp(58px, 8.5vw, 145px);
+  line-height: 0.95;
+  letter-spacing: -0.035em;
+}
+.copy-details h2 {
+  font-size: clamp(38px, 5.6vw, 85px);
+  letter-spacing: -0.03em;
+}
+.copy-details .event-time {
+  font-size: clamp(24px, 2.5vw, 36px);
+  margin: 25px 0 12px;
+}
+.copy-details .event-venue {
+  font-family: var(--sans);
+  font-size: clamp(12px, 1.1vw, 17px);
+  letter-spacing: 0.2em;
+  margin: 0;
+}
+.copy-quote blockquote {
+  white-space: pre-line;
+  font-style: italic;
+  font-size: clamp(27px, 3.6vw, 54px);
+  line-height: 1.25;
+  max-width: 900px;
+}
+.copy-quote {
+  padding-bottom: 30vh;
+}
+.copy-dawn p,
+.copy-love p {
+  font-size: clamp(24px, 2.8vw, 42px);
+}
+.copy-goodbye h2 {
+  font-size: clamp(30px, 5vw, 72px);
+}
+.copy-goodbye p {
+  font-family: var(--sans);
+  font-size: 13px;
+  letter-spacing: 0.2em;
+}
+.copy-goodbye .eyebrow {
+  font-size: 10px;
+  margin-top: 25px;
+}
+.scroll-hint {
+  position: absolute;
+  bottom: 35px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  letter-spacing: 0.17em;
+  opacity: 0.75;
+}
+.scroll-hint span {
+  margin-left: 15px;
+}
+.journey-progress {
+  position: absolute;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  background: #ffffff08;
+}
+.journey-progress i {
+  display: block;
+  height: 100%;
+  background: #e1c3af66;
+  transform-origin: left;
+}
+.audio-indicator {
+  position: absolute;
+  right: 28px;
+  top: 25px;
+  width: 44px;
+  height: 44px;
+  border: 1px solid #fff3;
+  border-radius: 50%;
+  background: #070d2280;
+  color: var(--pearl);
+  cursor: pointer;
+}
+.celestial-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  background: #060916;
+}
+.static-invitation {
+  max-width: 950px;
+  margin: auto;
+  padding: 80px 25px;
+  text-align: center;
+  white-space: pre-line;
+  background: radial-gradient(ellipse, #37214155, transparent);
+}
+.static-invitation p,
+.static-invitation blockquote {
+  font-family: var(--serif);
+  font-size: 25px;
+  line-height: 1.6;
+  margin: 45px 0;
+}
+.static-invitation h1 {
+  font-family: var(--serif);
+  font-size: clamp(46px, 8vw, 90px);
+}
+.static-invitation h2 {
+  font-family: var(--serif);
+  font-weight: 400;
+  line-height: 1.5;
+  font-size: 32px;
+}
+.static-invitation .eyebrow {
+  font-family: var(--sans);
+  font-size: 12px;
+  letter-spacing: 0.2em;
+}
+.static-invitation > span {
+  color: var(--gold);
+}
+.dev-controls {
+  position: absolute;
+  bottom: 15px;
+  left: 15px;
+  display: flex;
+  gap: 8px;
+  z-index: 10;
+  background: #000b;
+  padding: 10px;
+}
+.dev-controls button,
+.dev-controls select {
+  padding: 6px;
+  background: #111;
+  color: white;
+  border: 1px solid #666;
+}
+.dev-controls output {
+  font-size: 12px;
+}
+.reduced-motion * {
+  animation: none !important;
+  transition: none !important;
+}
+.reduced-motion .scene-copy {
+  transform: none !important;
+}
+@keyframes materialize {
+  from {
+    opacity: 0;
+    filter: blur(7px);
+    translate: 0 15px;
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    translate: 0 0;
+  }
+}
+@keyframes shimmer {
+  0%,
+  100% {
+    background-position: 100% 0;
+  }
+  50% {
+    background-position: 0 0;
+  }
+}
+@keyframes enter-ticket {
+  0% {
+    transform: rotate(-7deg) scale(1);
+    opacity: 1;
+  }
+  65% {
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(0deg) scale(8);
+    opacity: 0;
+  }
+}
+@media (min-width: 1800px) {
+  .ticket {
+    width: 780px;
+    height: 385px;
+  }
+  .ticket-title {
+    font-size: 83px;
+  }
+  .ticket-main {
+    padding: 40px 45px;
+  }
+  .ticket-brand,
+  .ticket-bottom {
+    font-size: 12px;
+  }
+  .ticket-stub {
+    width: 125px;
+  }
+}
+@media (max-width: 700px) {
+  .edge-mark {
+    top: 21px;
+    left: 22px;
+    font-size: 20px;
+  }
+  .ticket {
+    width: 82vw;
+    height: 240px;
+    transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) rotate(-8deg);
+  }
+  .ticket-main {
+    padding: 27px 21px 23px;
+  }
+  .ticket-title {
+    font-size: clamp(40px, 9.6vw, 58px);
+  }
+  .ticket-brand {
+    font-size: 7px;
+    letter-spacing: 0.14em;
+    max-width: 160px;
+  }
+  .ticket-emblem {
+    top: 45px;
+    right: 18px;
+    font-size: 26px;
+  }
+  .ticket-bottom {
+    font-size: 7px;
+    letter-spacing: 0.08em;
+    gap: 6px;
+  }
+  .ticket-stub {
+    width: 51px;
+    padding: 12px 2px;
+    font-size: 8px;
+  }
+  .stub-type {
+    font-size: 7px;
+  }
+  .barcode {
+    width: 28px;
+    height: 23px;
+  }
+  .ticket-stub:before,
+  .ticket-stub:after {
+    width: 14px;
+    height: 14px;
+    left: -7px;
+  }
+  .ticket-stub:before {
+    top: -8px;
+  }
+  .ticket-stub:after {
+    bottom: -8px;
+  }
+  .ticket-orbit {
+    width: 125vw;
+    height: 56vw;
+  }
+  .ticket-hint {
+    bottom: 23%;
+    font-size: 9px;
+  }
+  .scene-copy {
+    padding: 9vh 7vw;
+  }
+  .scene-copy p {
+    font-size: 23px;
+    line-height: 1.45;
+  }
+  .copy-title {
+    padding-bottom: 17vh;
+  }
+  .copy-title h1 {
+    font-size: 23vw;
+  }
+  .scene-copy .eyebrow {
+    font-size: 8px;
+    letter-spacing: 0.2em;
+  }
+  .copy-farewell {
+    align-items: center;
+    text-align: center;
+  }
+  .copy-farewell h2 {
+    font-size: 29px;
+  }
+  .copy-farewell p {
+    font-size: 22px;
+  }
+  .copy-farewell .copy-star {
+    margin-left: 24px;
+  }
+  .copy-promise h2 {
+    font-size: 14vw;
+  }
+  .copy-details h2 {
+    font-size: 10vw;
+  }
+  .copy-details .event-venue {
+    font-size: 10px;
+    letter-spacing: 0.14em;
+  }
+  .copy-quote {
+    padding-bottom: 32vh;
+  }
+  .copy-quote blockquote {
+    font-size: 30px;
+  }
+  .copy-goodbye h2 {
+    font-size: 10vw;
+  }
+  .copy-goodbye p {
+    font-size: 11px;
+  }
+  .copy-goodbye .eyebrow {
+    font-size: 8px;
+  }
+  .copy-love p {
+    font-size: 26px;
+  }
+  .copy-dawn p {
+    font-size: 24px;
+  }
+  .scroll-hint {
+    font-size: 9px;
+    bottom: 30px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *:before,
+  *:after {
+    animation: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@keyframes ticket-float {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -10px;
+  }
+}
+
+.copy-farewell,
+.copy-celebration,
+.copy-details,
+.copy-quote,
+.copy-love,
+.copy-dawn {
+  background: radial-gradient(
+    ellipse at 50% 47%,
+    #060919ab 0%,
+    #06091965 32%,
+    transparent 75%
+  );
+}
+.copy-farewell {
+  background: radial-gradient(
+    ellipse at 58% 48%,
+    #060919d9 0%,
+    #060919a6 24%,
+    #06091950 54%,
+    transparent 85%
+  );
+}
+.copy-promise {
+  background: radial-gradient(ellipse, #080c2580, transparent 72%);
+}
