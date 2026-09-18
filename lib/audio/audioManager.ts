@@ -116,6 +116,17 @@ export class AudioManager {
         this.warn(error);
       }
     }
+    if (DEBUG) {
+      for (const config of Object.values(this.config)) {
+        if (!config.enabled) continue;
+        this.log("audio URL check", {
+          scene: config.sceneId,
+          url: config.file,
+          readyState: "pending",
+          networkState: "pending",
+        });
+      }
+    }
     // Song0 must be ready as soon as the Troll mounts.
     this.preload("scene00");
   }
@@ -134,13 +145,26 @@ export class AudioManager {
     const audio = new Audio();
     audio.preload = id === "scene00" ? "auto" : config.preloadPriority;
     audio.src = this.resolveFile(config, audio);
-    const onLoaded = () => this.log("file loaded", { scene: id, src: audio.src });
+    const onLoaded = () => {
+      if (DEBUG) {
+        this.log("audio URL verified", {
+          scene: id,
+          url: audio.src,
+          readyState: audio.readyState,
+          networkState: audio.networkState,
+        });
+      }
+      this.log("file loaded", { scene: id, src: audio.src });
+    };
+    const onError = () => {
+      if (DEBUG) {
+        this.warn(`Audio URL failed: ${audio.src}`);
+      }
+      this.warn("Preload failed for " + id);
+    };
     audio.addEventListener("loadeddata", onLoaded, { once: true });
-    audio.addEventListener(
-      "error",
-      () => this.warn("Preload failed for " + id),
-      { once: true },
-    );
+    audio.addEventListener("loadedmetadata", onLoaded, { once: true });
+    audio.addEventListener("error", onError, { once: true });
     audio.load();
     this.preloaders.set(id, audio);
     this.log("preload started", id);

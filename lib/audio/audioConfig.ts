@@ -50,22 +50,22 @@ const intentionallyUnused = (sceneId: SceneId): SceneAudioConfig => ({
 
 export const audioConfig: AudioConfig = {
   scene00: {
-    ...clip("scene00", "/audio/Song0.Mp3", 16.056, "short"),
+    ...clip("scene00", "/audio/song0.mp3", 16.056, "short"),
     preloadPriority: "auto",
   },
-  scene01: clip("scene01", "/audio/Song1.Mp3", 16.056),
-  scene02: clip("scene02", "/audio/Song2.Mp3", 27.048, "hard-cut"),
+  scene01: clip("scene01", "/audio/song1.mp3", 16.056),
+  scene02: clip("scene02", "/audio/song2.mp3", 27.048, "hard-cut"),
   // Song3 is intentionally unused; scene03 inherits scene02's Song2 chapter.
   scene03: intentionallyUnused("scene03"),
   // Song4 is intentionally unused; scene04 inherits scene05's Song5 chapter.
   scene04: intentionallyUnused("scene04"),
-  scene05: clip("scene05", "/audio/Song5.Mp3", 16.056, "short"),
-  scene06: clip("scene06", "/audio/Song6.Mp3", 18.048, "hard-cut"),
+  scene05: clip("scene05", "/audio/song5.mp3", 16.056, "short"),
+  scene06: clip("scene06", "/audio/song6.mp3", 18.048, "hard-cut"),
   // Song7 is intentionally unused; scene07 remains inside Song6.
   scene07: intentionallyUnused("scene07"),
   // Song8 is never played. Its old scene endpoint is the end of scene08.
   scene08: intentionallyUnused("scene08"),
-  scene09: clip("scene09", "/audio/Song9.Mp3", 23.04),
+  scene09: clip("scene09", "/audio/song9.mp3", 23.04),
 };
 export const playableAudioIds: SceneId[] = [
   "scene00",

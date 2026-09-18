@@ -71,12 +71,12 @@ test("production defaults expose only the final six-song progression", () => {
       .filter((entry) => entry.enabled)
       .map((entry) => entry.file),
     [
-      "/audio/Song0.Mp3",
-      "/audio/Song1.Mp3",
-      "/audio/Song2.Mp3",
-      "/audio/Song5.Mp3",
-      "/audio/Song6.Mp3",
-      "/audio/Song9.Mp3",
+      "/audio/song0.mp3",
+      "/audio/song1.mp3",
+      "/audio/song2.mp3",
+      "/audio/song5.mp3",
+      "/audio/song6.mp3",
+      "/audio/song9.mp3",
     ],
   );
   assert.equal(manager.available, true);
