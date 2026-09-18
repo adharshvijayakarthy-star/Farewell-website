@@ -213,8 +213,8 @@ function MorphCanvas({
       // Soft jitter so the edge doesn't look like a UI stroke.
       const edgeX = edge.x + (Math.random() - 0.5) * 3;
       const edgeY = edge.y + (Math.random() - 0.5) * 3;
-      let interiorX = ticketX + Math.random() * ticketWidth;
-      let interiorY = ticketY + Math.random() * ticketHeight;
+      const interiorX = ticketX + Math.random() * ticketWidth;
+      const interiorY = ticketY + Math.random() * ticketHeight;
 
       const isEdge = i < particleCount * 0.48;
       const isDrift = i >= particleCount * 0.78;
@@ -418,7 +418,6 @@ function MorphCanvas({
         drawTicketPath(ctx, ticketX, ticketY, ticketWidth, ticketHeight, radius);
         ctx.clip();
 
-        const ink = `rgba(39, 37, 57, ${detail})`;
         const muted = `rgba(39, 37, 57, ${detail * 0.72})`;
 
         // 1–2. Inner border
