@@ -8,7 +8,6 @@ const config = [
       ".next-dev/**",
       "out/**",
       "node_modules/**",
-      "Troll opening/**",
       "next-env.d.ts",
     ],
   },

@@ -85,7 +85,11 @@ function InvitationLine({
       <div className={`troll-line ${dissolving ? "troll-dissolve" : ""}`} style={style}>
         {displayed}
       </div>
-      <div className="troll-reflection" aria-hidden="true" style={{ ...style, marginTop: 3 }}>
+      <div
+        className={`troll-reflection ${dissolving ? "troll-dissolve" : ""}`}
+        aria-hidden="true"
+        style={{ ...style, marginTop: 3 }}
+      >
         {displayed}
       </div>
     </div>
@@ -120,6 +124,16 @@ function drawTicketPath(
   context.roundRect(x, y, width, height, radius);
 }
 
+/** Interpolate between two "r,g,b" color strings. */
+function lerpColor(a: string, b: string, t: number): string {
+  const [ar, ag, ab] = a.split(",").map(Number);
+  const [br, bg, bb] = b.split(",").map(Number);
+  const r = Math.round(ar + (br - ar) * t);
+  const g = Math.round(ag + (bg - ag) * t);
+  const bl = Math.round(ab + (bb - ab) * t);
+  return `${r},${g},${bl}`;
+}
+
 function MorphCanvas({
   active,
   onMusicHandoff,
@@ -133,7 +147,7 @@ function MorphCanvas({
   const frame = useRef<number>(0);
   const handedOff = useRef(false);
   const completed = useRef(false);
-  const duration = 3_200;
+  const duration = 4_000;
 
   useEffect(() => {
     if (!active || !canvas.current) return;
@@ -143,18 +157,27 @@ function MorphCanvas({
 
     const width = (element.width = window.innerWidth);
     const height = (element.height = window.innerHeight);
-    const ticketWidth = Math.min(width * 0.72, 720);
-    const ticketHeight = ticketWidth * 0.38;
+    const isMobile = width < 700;
+    const ticketWidth = isMobile ? width * 0.82 : Math.min(650, width * 0.75);
+    const ticketHeight = isMobile ? 240 : 322;
     const ticketX = (width - ticketWidth) / 2;
-    const ticketY = (height - ticketHeight) / 2 - 20;
+    const ticketY = (height - ticketHeight) / 2;
+    const ticketRadius = 15;
+    const stubWidth = isMobile ? 51 : 102;
+    const stubDividerX = ticketX + ticketWidth - stubWidth;
+
     const particleCount = Math.min(700, Math.max(260, Math.floor((width * height) / 2_400)));
     const particles: Particle[] = [];
+
+    const centerX = ticketX + ticketWidth / 2;
+    const centerY = ticketY + ticketHeight / 2;
 
     for (let i = 0; i < particleCount; i += 1) {
       const perimeter = 2 * (ticketWidth + ticketHeight);
       const perimeterPosition = Math.random() * perimeter;
       let targetX = ticketX + Math.random() * ticketWidth;
       let targetY = ticketY + Math.random() * ticketHeight;
+
       if (i < particleCount * 0.45) {
         if (perimeterPosition < ticketWidth) {
           targetX = ticketX + perimeterPosition;
@@ -170,44 +193,109 @@ function MorphCanvas({
           targetY = ticketY + ticketHeight - (perimeterPosition - 2 * ticketWidth - ticketHeight);
         }
       }
-      const angle = Math.random() * Math.PI * 2;
-      const distance = 80 + Math.random() * Math.min(width, height) * 0.55;
-      particles.push({
-        x: width / 2 + Math.cos(angle) * distance,
-        y: height / 2 + Math.sin(angle) * distance,
-        targetX,
-        targetY,
-        velocityX: 0,
-        velocityY: 0,
-        size: 1 + Math.random() * 1.8,
-        alpha: 0,
-      });
+
+      // 25% of particles originate from the reflection zone below the text and trail upward
+      if (i < particleCount * 0.25) {
+        particles.push({
+          x: centerX + (Math.random() - 0.5) * ticketWidth * 0.8,
+          y: centerY + 50 + Math.random() * 100,
+          targetX,
+          targetY,
+          velocityX: (Math.random() - 0.5) * 0.5,
+          velocityY: -0.8 - Math.random() * 1.2,
+          size: 1 + Math.random() * 1.7,
+          alpha: 0,
+        });
+      } else {
+        const angle = Math.random() * Math.PI * 2;
+        const distance = 80 + Math.random() * Math.min(width, height) * 0.55;
+        particles.push({
+          x: width / 2 + Math.cos(angle) * distance,
+          y: height / 2 + Math.sin(angle) * distance,
+          targetX,
+          targetY,
+          velocityX: 0,
+          velocityY: 0,
+          size: 1 + Math.random() * 1.8,
+          alpha: 0,
+        });
+      }
     }
 
     const started = performance.now();
     handedOff.current = false;
     completed.current = false;
 
+    // Color stops for gradual progression:
+    // BLACK → WHITE PARTICLES → PEARL → SOFT VIOLET → PINK → CYAN → CHAMPAGNE / CHROME → FULL TICKET
+    const colorStops: { at: number; color: string }[] = [
+      { at: 0.0, color: "255,255,255" },     // White
+      { at: 0.18, color: "241,233,224" },    // Pearl
+      { at: 0.35, color: "208,185,232" },    // Soft violet
+      { at: 0.50, color: "231,180,212" },    // Pink
+      { at: 0.68, color: "180,230,225" },    // Cyan
+      { at: 0.85, color: "216,195,157" },    // Champagne
+      { at: 1.0, color: "218,200,165" },     // Warm chrome
+    ];
+
+    function getColor(progress: number): string {
+      for (let i = 0; i < colorStops.length - 1; i++) {
+        if (progress <= colorStops[i + 1].at) {
+          const t = (progress - colorStops[i].at) / (colorStops[i + 1].at - colorStops[i].at);
+          return lerpColor(colorStops[i].color, colorStops[i + 1].color, t);
+        }
+      }
+      return colorStops[colorStops.length - 1].color;
+    }
+
     const draw = (now: number) => {
       const progress = Math.min(1, (now - started) / duration);
       context.clearRect(0, 0, width, height);
+
+      // Background: fade from pure black to subtle celestial transparency
       context.fillStyle = `rgba(0, 0, 0, ${Math.max(0.035, 1 - progress * 0.97)})`;
       context.fillRect(0, 0, width, height);
 
-      const gather = ease(progress / 0.52);
-      const reveal = ease((progress - 0.32) / 0.68);
-      const centerX = ticketX + ticketWidth / 2;
-      const centerY = ticketY + ticketHeight / 2;
+      const gather = ease(progress / 0.48);
+      const reveal = ease((progress - 0.35) / 0.65);
 
-      if (progress > 0.25) {
-        const glow = ease((progress - 0.25) / 0.35) * 0.32;
+      // Phase 1: Reflection distortion & upward light stretch (0.00–0.22)
+      if (progress < 0.22) {
+        const distort = ease(progress / 0.22);
+        const distortRadius = ticketWidth * 0.35 * distort;
         const gradient = context.createRadialGradient(
-          centerX,
-          centerY,
-          0,
-          centerX,
-          centerY,
-          ticketWidth * 0.7,
+          centerX, centerY + 30 * (1 - distort), 0,
+          centerX, centerY, distortRadius,
+        );
+        gradient.addColorStop(0, `rgba(255, 255, 255, ${distort * 0.07})`);
+        gradient.addColorStop(0.55, `rgba(200, 195, 220, ${distort * 0.035})`);
+        gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, width, height);
+      }
+
+      // Phase 2: Subtle central glow builds before outline (0.18–0.50)
+      if (progress > 0.18 && progress < 0.52) {
+        const glowPhase = ease((progress - 0.18) / 0.26);
+        const glowFade = progress > 0.44 ? 1 - ease((progress - 0.44) / 0.08) : 1;
+        const glowAlpha = glowPhase * glowFade * 0.24;
+        const gradient = context.createRadialGradient(
+          centerX, centerY, 0,
+          centerX, centerY, ticketWidth * 0.5,
+        );
+        gradient.addColorStop(0, `rgba(220, 210, 240, ${glowAlpha})`);
+        gradient.addColorStop(0.4, `rgba(200, 185, 230, ${glowAlpha * 0.4})`);
+        gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, width, height);
+      }
+
+      // Phase 3: Celestial environment aura expands (0.28+)
+      if (progress > 0.28) {
+        const glow = ease((progress - 0.28) / 0.32) * 0.32;
+        const gradient = context.createRadialGradient(
+          centerX, centerY, 0,
+          centerX, centerY, ticketWidth * 0.7,
         );
         gradient.addColorStop(0, `rgba(225, 205, 255, ${glow})`);
         gradient.addColorStop(0.48, `rgba(190, 160, 230, ${glow * 0.32})`);
@@ -216,62 +304,62 @@ function MorphCanvas({
         context.fillRect(0, 0, width, height);
       }
 
-      if (progress > 0.43) {
-        const interior = ease((progress - 0.43) / 0.57);
-        const ticketGradient = context.createLinearGradient(ticketX, ticketY, ticketX + ticketWidth, ticketY + ticketHeight);
+      // Phase 4: Ticket outline begins forming (0.34–0.56)
+      if (progress > 0.34) {
+        const outlinePhase = ease((progress - 0.34) / 0.22);
+        drawTicketPath(context, ticketX, ticketY, ticketWidth, ticketHeight, ticketRadius);
+        context.strokeStyle = `rgba(255, 255, 255, ${outlinePhase * 0.88})`;
+        context.lineWidth = 1.5;
+        context.stroke();
+
+        // Stub separator dashed line
+        context.setLineDash([4, 4]);
+        context.beginPath();
+        context.moveTo(stubDividerX, ticketY);
+        context.lineTo(stubDividerX, ticketY + ticketHeight);
+        context.strokeStyle = `rgba(200, 180, 255, ${outlinePhase * 0.48})`;
+        context.stroke();
+        context.setLineDash([]);
+      }
+
+      // Phase 5: Ticket interior surface appears (0.46+)
+      if (progress > 0.46) {
+        const interior = ease((progress - 0.46) / 0.54);
+        const ticketGradient = context.createLinearGradient(
+          ticketX,
+          ticketY,
+          ticketX + ticketWidth,
+          ticketY + ticketHeight,
+        );
         ticketGradient.addColorStop(0, `rgba(240, 227, 204, ${interior * 0.82})`);
         ticketGradient.addColorStop(0.28, `rgba(188, 180, 224, ${interior * 0.82})`);
         ticketGradient.addColorStop(0.55, `rgba(247, 211, 220, ${interior * 0.82})`);
         ticketGradient.addColorStop(0.78, `rgba(176, 226, 224, ${interior * 0.82})`);
         ticketGradient.addColorStop(1, `rgba(218, 198, 160, ${interior * 0.88})`);
-        drawTicketPath(context, ticketX, ticketY, ticketWidth, ticketHeight, 9);
+        drawTicketPath(context, ticketX, ticketY, ticketWidth, ticketHeight, ticketRadius);
         context.fillStyle = ticketGradient;
         context.fill();
       }
 
-      if (progress > 0.34) {
-        const outline = ease((progress - 0.34) / 0.23);
-        drawTicketPath(context, ticketX, ticketY, ticketWidth, ticketHeight, 9);
-        context.strokeStyle = `rgba(255, 255, 255, ${outline * 0.88})`;
-        context.lineWidth = 1.5;
-        context.stroke();
-        context.setLineDash([4, 4]);
-        context.beginPath();
-        context.moveTo(ticketX + ticketWidth * 0.795, ticketY);
-        context.lineTo(ticketX + ticketWidth * 0.795, ticketY + ticketHeight);
-        context.strokeStyle = `rgba(200, 180, 255, ${outline * 0.48})`;
-        context.stroke();
-        context.setLineDash([]);
-      }
-
-      const color =
-        progress < 0.2
-          ? "255,255,255"
-          : progress < 0.42
-            ? "239,233,250"
-            : progress < 0.62
-              ? "208,185,232"
-              : progress < 0.8
-                ? "231,180,212"
-                : progress < 0.93
-                  ? "180,230,225"
-                  : "216,195,157";
+      // Particles with progressive celestial colors
+      const color = getColor(progress);
       for (const particle of particles) {
-        particle.velocityX = particle.velocityX * 0.85 + (particle.targetX - particle.x) * (0.055 + gather * 0.085);
-        particle.velocityY = particle.velocityY * 0.85 + (particle.targetY - particle.y) * (0.055 + gather * 0.085);
+        particle.velocityX = particle.velocityX * 0.85 + (particle.targetX - particle.x) * (0.045 + gather * 0.075);
+        particle.velocityY = particle.velocityY * 0.85 + (particle.targetY - particle.y) * (0.045 + gather * 0.075);
         particle.x += particle.velocityX;
         particle.y += particle.velocityY;
-        particle.alpha = Math.min(1, particle.alpha + 0.045);
+        particle.alpha = Math.min(1, particle.alpha + 0.038);
         context.beginPath();
         context.arc(particle.x, particle.y, particle.size * (1 + reveal * 0.4), 0, Math.PI * 2);
         context.fillStyle = `rgba(${color}, ${particle.alpha * (0.58 + reveal * 0.42)})`;
         context.fill();
       }
 
-      if (progress > 0.5 && progress < 0.9) {
-        const sweep = (progress - 0.5) / 0.4;
+      // Phase 6: First iridescent light sweep (0.52–0.78)
+      if (progress > 0.52 && progress < 0.78) {
+        const sweep = (progress - 0.52) / 0.26;
         context.save();
-        drawTicketPath(context, ticketX + 10, ticketY + 10, ticketWidth - 20, ticketHeight - 20, 5);
+        drawTicketPath(context, ticketX + 10, ticketY + 10, ticketWidth - 20, ticketHeight - 20, 7);
         context.clip();
         const light = context.createLinearGradient(
           ticketX + ticketWidth * (sweep - 0.18),
@@ -287,10 +375,32 @@ function MorphCanvas({
         context.restore();
       }
 
-      if (progress >= 0.48 && !handedOff.current) {
+      // Phase 7: Second subtle champagne sheen as details resolve (0.82–0.96)
+      if (progress > 0.82 && progress < 0.96) {
+        const sweep2 = (progress - 0.82) / 0.14;
+        context.save();
+        drawTicketPath(context, ticketX + 10, ticketY + 10, ticketWidth - 20, ticketHeight - 20, 7);
+        context.clip();
+        const light2 = context.createLinearGradient(
+          ticketX + ticketWidth * (1 - sweep2 + 0.12),
+          ticketY,
+          ticketX + ticketWidth * (1 - sweep2 - 0.12),
+          ticketY + ticketHeight,
+        );
+        light2.addColorStop(0, "rgba(255,255,255,0)");
+        light2.addColorStop(0.5, `rgba(255,240,220,${0.1 * ease(reveal)})`);
+        light2.addColorStop(1, "rgba(255,255,255,0)");
+        context.fillStyle = light2;
+        context.fillRect(ticketX, ticketY, ticketWidth, ticketHeight);
+        context.restore();
+      }
+
+      // Music handoff at 55% of morph
+      if (progress >= 0.55 && !handedOff.current) {
         handedOff.current = true;
         onMusicHandoff();
       }
+
       if (progress >= 1) {
         if (!completed.current) {
           completed.current = true;
@@ -312,6 +422,12 @@ function MorphCanvas({
 }
 
 function PostMorphStars({ visible }: { visible: boolean }) {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const stars = useRef(
     Array.from({ length: 42 }, (_, index) => {
       const wave = (value: number) =>
@@ -325,6 +441,9 @@ function PostMorphStars({ visible }: { visible: boolean }) {
       };
     }),
   );
+
+  if (!isMounted) return null;
+
   return (
     <div className={`troll-stars ${visible ? "is-visible" : ""}`} aria-hidden="true">
       {stars.current.map((star, index) => (
@@ -361,8 +480,12 @@ export default function TrollOpening({
   const [showScroll, setShowScroll] = useState(false);
   const [starsVisible, setStarsVisible] = useState(false);
   const [morphActive, setMorphActive] = useState(false);
-  const start = useRef(performance.now());
+  const start = useRef(0);
   const transitionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    start.current = performance.now();
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -409,7 +532,7 @@ export default function TrollOpening({
       setStarsVisible(true);
       setMorphActive(true);
       setStage("morph");
-    }, 850);
+    }, 2600);
   }
 
   const invitation = {
@@ -458,12 +581,12 @@ export default function TrollOpening({
         <div className="troll-phase troll-reveal" aria-live="polite">
           {showTrollLine && (
             <div className={dissolving ? "troll-dissolve" : ""}>
-              <InvitationLine text="YOU ACTUALLY THOUGHT THAT WAS IT?" speed={27} />
+              <InvitationLine text="YOU ACTUALLY THOUGHT THAT WAS IT?" speed={27} dissolving={dissolving} />
             </div>
           )}
           {showTrollAnswer && (
             <div className={dissolving ? "troll-dissolve" : "troll-fade-up"}>
-              <InvitationLine text="WAIT UNTIL YOU SEE WHAT'S BEHIND THIS." speed={24} />
+              <InvitationLine text="WAIT UNTIL YOU SEE WHAT'S BEHIND THIS." speed={24} dissolving={dissolving} />
             </div>
           )}
           {showScroll && (

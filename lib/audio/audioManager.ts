@@ -86,34 +86,73 @@ export class AudioManager {
       }
     }
   }
+  private gestureCleanup?: () => void;
+
+  private attachGestureUnlock() {
+    if (this.gestureCleanup || typeof window === "undefined") return;
+    const unlockHandler = () => {
+      void this.unlock().then(() => {
+        if (this.unlocked && this.gestureCleanup) {
+          this.gestureCleanup();
+          this.gestureCleanup = undefined;
+        }
+      });
+    };
+    const opts = { passive: true, capture: true };
+    window.addEventListener("pointerdown", unlockHandler, opts);
+    window.addEventListener("touchstart", unlockHandler, opts);
+    window.addEventListener("keydown", unlockHandler, opts);
+    this.gestureCleanup = () => {
+      window.removeEventListener("pointerdown", unlockHandler, opts);
+      window.removeEventListener("touchstart", unlockHandler, opts);
+      window.removeEventListener("keydown", unlockHandler, opts);
+    };
+  }
+
   async unlock() {
     this.init();
     if (!this.available) return;
     try {
       if (!this.context) {
-        this.context = new AudioContext();
+        const AudioCtx =
+          (typeof window !== "undefined" &&
+            (window.AudioContext ||
+              (window as unknown as { webkitAudioContext: typeof AudioContext })
+                .webkitAudioContext)) ||
+          globalThis.AudioContext;
+        this.context = new AudioCtx();
         this.master = this.context.createGain();
         this.master.gain.value = this.volume;
         this.master.connect(this.context.destination);
       }
-      const activeChannel = this.active
-        ? this.getChannel(this.active)
-        : undefined;
-      // Request the intro immediately; some browsers leave resume() pending until a gesture.
-      if (this.active && (!activeChannel || activeChannel.audio.paused))
-        void this.play(this.active, ++this.generation);
-      await this.context.resume();
-      this.unlocked = true;
+      if (this.context.state === "suspended") {
+        await this.context.resume();
+      }
+      const isRunning =
+        !this.context.state || this.context.state === "running";
+      this.unlocked = isRunning;
       this.paused = false;
-      this.timer ??= setInterval(() => this.tick(), 30);
+      if (isRunning) {
+        this.timer ??= setInterval(() => this.tick(), 30);
+        if (this.gestureCleanup) {
+          this.gestureCleanup();
+          this.gestureCleanup = undefined;
+        }
+      }
       this.emit();
-      const resumedChannel = this.active
-        ? this.channels.get(this.active)
-        : undefined;
-      if (this.active && (!resumedChannel || resumedChannel.audio.paused))
-        await this.play(this.active, ++this.generation);
+      // Now attempt to play the active scene (Song0 during Troll).
+      if (this.active) {
+        const channel = this.channels.get(this.active);
+        if (!channel || channel.audio.paused)
+          await this.play(this.active, ++this.generation);
+      }
     } catch {
       this.warn("Playback unavailable; the visual journey continues.");
+    }
+
+    // If still blocked by browser autoplay policy, arm gesture unlock on first user action
+    if (!this.unlocked && typeof window !== "undefined") {
+      this.attachGestureUnlock();
     }
   }
   enterScene(id: SceneId) {
@@ -361,6 +400,10 @@ export class AudioManager {
     clearTimeout(this.pending);
     clearInterval(this.timer);
     this.timer = undefined;
+    if (this.gestureCleanup) {
+      this.gestureCleanup();
+      this.gestureCleanup = undefined;
+    }
     for (const c of this.channels.values()) {
       clearTimeout(c.stop);
       c.cancelLoad?.();

@@ -56,7 +56,6 @@ type StarData = {
   glows: Float32Array;
 };
 
-type SpecialData = StarData & { count: number };
 type StarMood = {
   disco: number;
   promises: number;
@@ -395,8 +394,8 @@ export default function StarField({
         if (influence > 0.18)
           candidates.push({ index: i, distance, influence });
       }
-      specialPositionAttribute.needsUpdate = true;
-      specialGlowAttribute.needsUpdate = true;
+      if (specialPositionAttribute) specialPositionAttribute.needsUpdate = true;
+      if (specialGlowAttribute) specialGlowAttribute.needsUpdate = true;
     }
     specialUniforms.uTime.value = time;
     specialUniforms.uOpacity.value =

@@ -53,16 +53,6 @@ function Journey() {
   useEffect(() => {
     audio.enterScene("scene00");
     void audio.unlock();
-    const unlockFromGesture = () => void audio.unlock();
-    window.addEventListener("pointerdown", unlockFromGesture, {
-      once: true,
-      passive: true,
-    });
-    window.addEventListener("keydown", unlockFromGesture, { once: true });
-    return () => {
-      window.removeEventListener("pointerdown", unlockFromGesture);
-      window.removeEventListener("keydown", unlockFromGesture);
-    };
   }, [audio]);
   useEffect(() => {
     document.body.style.overflow =
