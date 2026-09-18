@@ -57,6 +57,20 @@ const cameras: Vec3[] = [
 ];
 // Reading/camera pacing weights, informed by the prepared clips but independent of playback.
 const explorationSeconds = [16, 19, 29, 16, 34, 29, 21, 33, 28, 24];
+// Several visual scenes intentionally share one musical chapter. This keeps
+// the visual story intact while locking playback to the final six-song order.
+const audioChapters: SceneId[] = [
+  "scene00", // Song0: automatic Troll opening
+  "scene01", // Song1: ticket and early experience
+  "scene02", // Song2: original Song2 window
+  "scene02", // Song2: absorbs the original Song3 window
+  "scene05", // Song5: replaces the original Song4 chapter
+  "scene05", // Song5: continues to the original Song6 start point
+  "scene06", // Song6: original Song6 start
+  "scene06", // Song6: absorbs the original Song7 window
+  "scene06", // Song6: continues through the old Song8 endpoint
+  "scene09", // Song9: final farewell
+];
 export const scenes: SceneConfig[] = sceneIds.map((id, i) => ({
   id,
   label: labels[i],
@@ -83,7 +97,7 @@ export const scenes: SceneConfig[] = sceneIds.map((id, i) => ({
   },
   textState: id,
   animationState: id,
-  audioId: id,
+  audioId: audioChapters[i],
   assets: i === 2 || i === 3 ? ["/models/celestial-flower.glb"] : [],
   transition: { duration: 0.14, ease: "smoothstep" },
 }));

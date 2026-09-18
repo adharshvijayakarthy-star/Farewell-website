@@ -2,26 +2,26 @@ import { clamp, smooth } from "./sceneTimeline";
 /** Three chapter punctuation marks. Every intermediate stage is scroll-reversible. */
 export const majorTransitions = [
   {
-    id: "cosmos-disco",
-    start: 0.158,
+    id: "awakening-disco",
+    start: 0.156,
     climax: 0.18,
-    end: 0.201,
+    end: 0.208,
     kind: "warp",
     color: "#cfa8ff",
   },
   {
-    id: "memories-details",
-    start: 0.649,
-    climax: 0.67,
-    end: 0.69,
+    id: "disco-farewell",
+    start: 0.386,
+    climax: 0.41,
+    end: 0.438,
     kind: "collapse",
     color: "#f4cf9d",
   },
   {
-    id: "page-dawn",
-    start: 0.829,
-    climax: 0.855,
-    end: 0.876,
+    id: "last-light-dawn",
+    start: 0.934,
+    climax: 0.955,
+    end: 0.982,
     kind: "page",
     color: "#f8dec1",
   },
@@ -44,19 +44,21 @@ export function transitionState(progress: number) {
 }
 /** Typed text cues: small entrance, long settlement/reading hold, prepared exit. */
 export const textCues = {
-  title: { start: 0.065, end: 0.173 },
-  beneath: { start: 0.354, end: 0.402 },
-  farewell: { start: 0.418, end: 0.533 },
+  // Begin just before the first post-ticket scroll position so the hero has
+  // settled in when the user enters the experience.
+  title: { start: 0.05, end: 0.174 },
+  beneath: { start: 0.248, end: 0.397 },
+  farewell: { start: 0.421, end: 0.526 },
   promises: [
-    { start: 0.545, end: 0.58 },
-    { start: 0.582, end: 0.617 },
-    { start: 0.619, end: 0.654 },
+    { start: 0.535, end: 0.577 },
+    { start: 0.584, end: 0.626 },
+    { start: 0.633, end: 0.668 },
   ],
-  details: { start: 0.683, end: 0.762 },
-  quote: { start: 0.782, end: 0.837 },
-  dawn: { start: 0.873, end: 0.92 },
-  love: { start: 0.922, end: 0.956 },
-  goodbye: { start: 0.96, end: 0.99 },
+  details: { start: 0.685, end: 0.758 },
+  quote: { start: 0.775, end: 0.828 },
+  love: { start: 0.842, end: 0.927 },
+  dawn: { start: 0.949, end: 0.978 },
+  goodbye: { start: 0.974, end: 0.999 },
 };
 export function textPhase(
   progress: number,

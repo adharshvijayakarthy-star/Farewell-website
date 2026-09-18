@@ -55,9 +55,7 @@ export default function Ticket({
           <span>2026</span>
         </span>
       </button>
-      <span className="ticket-hint">
-        Tap the ticket to enter <span aria-hidden="true">↗</span>
-      </span>
+      <span className="ticket-hint">Tap the ticket to enter</span>
     </div>
   );
 }

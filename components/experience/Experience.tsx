@@ -10,6 +10,7 @@ import SceneCopy from "../ui/SceneCopy";
 import ChapterTransition from "../ui/ChapterTransition";
 import PresentationControls from "../ui/PresentationControls";
 import StaticInvitation from "../ui/StaticInvitation";
+import TrollOpening from "../ui/TrollOpening";
 const Canvas = dynamic(() => import("./ExperienceCanvas"), {
   ssr: false,
   loading: () => (
@@ -19,6 +20,7 @@ const Canvas = dynamic(() => import("./ExperienceCanvas"), {
 function Journey() {
   const audio = useAudio();
   const [entered, setEntered] = useState(false),
+    [trollComplete, setTrollComplete] = useState(false),
     [entering, setEntering] = useState(false),
     [fallback, setFallback] = useState(false),
     [reduced, setReduced] = useState(false),
@@ -49,6 +51,20 @@ function Journey() {
     };
   }, []);
   useEffect(() => {
+    audio.enterScene("scene00");
+    void audio.unlock();
+    const unlockFromGesture = () => void audio.unlock();
+    window.addEventListener("pointerdown", unlockFromGesture, {
+      once: true,
+      passive: true,
+    });
+    window.addEventListener("keydown", unlockFromGesture, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", unlockFromGesture);
+      window.removeEventListener("keydown", unlockFromGesture);
+    };
+  }, [audio]);
+  useEffect(() => {
     document.body.style.overflow =
       (entered || fallback) && !paused ? "" : "hidden";
     return () => {
@@ -56,8 +72,8 @@ function Journey() {
     };
   }, [entered, fallback, paused]);
   useEffect(() => {
-    audio.enterScene(activeScene);
-  }, [audio, activeScene]);
+    if (entered) audio.enterScene(activeScene);
+  }, [audio, activeScene, entered]);
   useEffect(() => {
     if (progress >= 0.9995 && !finished.current) {
       finished.current = true;
@@ -70,7 +86,7 @@ function Journey() {
   function enter() {
     if (entering || entered) return;
     setEntering(true);
-    audio.enterScene("scene00");
+    audio.enterScene("scene01");
     void audio.unlock();
     enterTimer.current = setTimeout(
       () => {
@@ -90,6 +106,13 @@ function Journey() {
     window.scrollTo(0, 0);
   }
   if (fallback) return <StaticInvitation />;
+  if (!trollComplete)
+    return (
+      <TrollOpening
+        onMusicHandoff={() => audio.enterScene("scene01")}
+        onComplete={() => setTrollComplete(true)}
+      />
+    );
   return (
     <main
       id="journey"
@@ -110,9 +133,7 @@ function Journey() {
         <SceneCopy progress={progress} entered={entered} />
         <ChapterTransition progress={progress} reduced={reduced} />
         {entered && progress < 0.115 && (
-          <span className="scroll-hint">
-            Scroll to explore <span>↓</span>
-          </span>
+          <span className="scroll-hint">Scroll to explore</span>
         )}
         {progress < 0.99 && (
           <div className="edge-mark" aria-hidden="true">

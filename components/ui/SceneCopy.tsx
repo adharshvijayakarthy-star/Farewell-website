@@ -210,7 +210,8 @@ export default function SceneCopy({
       <Beat cue={textCues.goodbye} progress={p} kind="goodbye">
         {() => (
           <>
-            <h2>{copy.title}</h2>
+            <h2>{copy.goodbye}</h2>
+            <p>{copy.title}</p>
             <p>{copy.date}</p>
             <p className="eyebrow">{copy.brand}</p>
           </>

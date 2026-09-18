@@ -1,0 +1,10 @@
+{
+  "description": "Transforms detailed markdown prompts into actionable tasks, streamlining workflow for professionals seeking efficient task execution from text inputs.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

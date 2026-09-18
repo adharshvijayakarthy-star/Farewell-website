@@ -1,20 +1,21 @@
 export const copy = {
   brand: "✦ CELESTIAL ELEGANCE ✦",
   title: "DISCO TILL DAWN",
-  dear: "Dear DP2 & A Level ❤️,",
+  dear: "Dear DP2 & A Level,",
   invitation:
-    "Here’s to the friends who became our everyday,\nthe laughter between lessons, and the little moments\nwe’ll carry into whatever comes next.\nBefore the next chapter, one last night together.",
+    "You made ordinary days feel like a story.\nBetween the bells, the deadlines, and the laughter,\nwe found a thousand reasons to stay a little longer.\nBefore everyone takes off, one last night together.",
   promises: [
     "ONE LAST NIGHT.",
-    "ONE FINAL CELEBRATION.",
-    "A THOUSAND MEMORIES.",
+    "ALL THE RIGHT PEOPLE.",
+    "NOT A SINGLE BORING MINUTE.",
   ],
   celebration:
-    "For the laughter, the friendships,\nand the memories we didn’t know we were making.",
+    "For the inside jokes, the last-minute plans,\nand the memories still being made.",
   date: "14 NOVEMBER 2026",
   time: "4:00 PM onwards",
   venue: "TIPS MAIN — SEMINAR HALL",
-  quote: "“The chapter ends.\nThe stories come with us.”",
-  dawn: "One more evening. All of us, under the stars.\nLet’s make a memory that stays\nlong after the lights come up. ✨",
-  love: "With love & fond memories,\nDP1 & AS Level Students ❤️",
+  quote: "“The chapter closes.\nThe good parts travel with us.”",
+  dawn: "One final orbit together.\nCome as you are. Leave with a story\nthat outshines the lights.",
+  love: "Made with love,\nfrom the students cheering you on",
+  goodbye: "See you under the stars.\nBring the stories. We’ll bring the music.",
 };

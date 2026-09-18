@@ -14,6 +14,7 @@ import { validateVideoBudget } from "../lib/scene/videoConfig";
 const config = {
   ...audioConfig.scene02,
   enabled: true,
+  fullClip: false,
   file: "/audio/test-only.wav",
   segmentStart: 48,
   segmentEnd: 72,
@@ -62,21 +63,44 @@ test("invalid audio entries are rejected without disabling visual progress", () 
     null,
   );
 });
-test("silent production defaults never instantiate or fetch media", () => {
+test("production defaults expose only the final six-song progression", () => {
   const manager = new AudioManager();
   manager.init();
-  for (const id of Object.keys(audioConfig) as (keyof typeof audioConfig)[]) {
-    assert.equal(audioConfig[id].enabled, false);
-    assert.equal(audioConfig[id].file, "");
-    manager.enterScene(id);
-  }
-  assert.equal(manager.available, false);
+  assert.deepEqual(
+    Object.values(audioConfig)
+      .filter((entry) => entry.enabled)
+      .map((entry) => entry.file),
+    [
+      "/audio/Song0.Mp3",
+      "/audio/Song1.Mp3",
+      "/audio/Song2.Mp3",
+      "/audio/Song5.Mp3",
+      "/audio/Song6.Mp3",
+      "/audio/Song9.Mp3",
+    ],
+  );
+  assert.equal(manager.available, true);
   manager.destroy();
 });
 test("fast and reverse scroll resolve directly to the destination scene", () => {
   assert.equal(sceneAt(0.95).id, "scene08");
   assert.equal(sceneAt(0.21).id, "scene02");
   assert.equal(sceneAt(1).id, "scene09");
+  assert.deepEqual(
+    scenes.map((scene) => scene.audioId),
+    [
+      "scene00",
+      "scene01",
+      "scene02",
+      "scene02",
+      "scene05",
+      "scene05",
+      "scene06",
+      "scene06",
+      "scene06",
+      "scene09",
+    ],
+  );
   scenes.forEach((s, i) => {
     assert.equal(localProgress(s.startProgress, i), 0);
     assert.equal(localProgress(s.endProgress, i), 1);
@@ -89,6 +113,9 @@ class FakeParam {
   value = 0;
   cancelAndHoldAtTime() {}
   linearRampToValueAtTime(v: number) {
+    this.value = v;
+  }
+  setValueAtTime(v: number) {
     this.value = v;
   }
   setTargetAtTime(v: number) {
@@ -154,6 +181,7 @@ test("manager crossfades, cancels stale exits, loops and remembers reverse navig
   cfg.scene03 = {
     ...cfg.scene03,
     enabled: true,
+    fullClip: false,
     file: "/audio/test-only-2.wav",
     segmentStart: 0,
     segmentEnd: 30,
@@ -163,19 +191,23 @@ test("manager crossfades, cancels stale exits, loops and remembers reverse navig
     fadeOut: 0.02,
     transitionDuration: 0.02,
   };
-  const m = new AudioManager(cfg);
+  const m = new AudioManager(cfg, 0);
   await m.unlock();
   m.enterScene("scene02");
-  await new Promise((r) => setTimeout(r, 5));
+  await new Promise((r) => setTimeout(r, 25));
   const first = FakeAudio.instances.at(-1)!;
   assert.equal(first.currentTime, 48);
   first.currentTime = 61.37;
   m.enterScene("scene03");
   await new Promise((r) => setTimeout(r, 35));
+  const incoming = FakeAudio.instances.at(-1)!;
+  assert.equal(first.paused, false);
+  assert.equal(incoming.paused, false);
+  await new Promise((r) => setTimeout(r, 700));
   assert.equal(first.paused, true);
   assert.equal(m.getScenePosition("scene02"), 61.37);
   m.enterScene("scene02");
-  await new Promise((r) => setTimeout(r, 5));
+  await new Promise((r) => setTimeout(r, 25));
   assert.equal(first.currentTime, 61.37);
   assert.equal(first.paused, false);
   first.currentTime = 72.1;

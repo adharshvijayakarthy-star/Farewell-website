@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { scenes } from "@/lib/scene/sceneConfig";
 import { scrollToProgress, sceneAt } from "@/lib/scene/sceneTimeline";
 import type { SceneId } from "@/lib/scene/sceneConfig";
 /** Native scroll controls a single smoothed, reversible timeline. Audio gets the destination ID. */
@@ -25,7 +26,10 @@ export function useExperienceProgress(
         window.scrollY /
           Math.max(1, document.documentElement.scrollHeight - innerHeight),
       );
-      setActiveScene(sceneAt(destination.current).audioId);
+      // Once the ticket has been entered, the first scroll position belongs to
+      // the Song1 chapter. Song0 is reserved for the automatic Troll opening.
+      const audioProgress = Math.max(destination.current, scenes[1].startProgress);
+      setActiveScene(sceneAt(audioProgress).audioId);
     };
     const tick = (now: number) => {
       const dt = Math.min(0.1, (now - previous) / 1000);
@@ -42,6 +46,7 @@ export function useExperienceProgress(
       frame = requestAnimationFrame(tick);
     };
     read();
+    setActiveScene("scene01");
     if (current.current === 0) current.current = 0.065;
     frame = requestAnimationFrame(tick);
     window.addEventListener("scroll", read, { passive: true });

@@ -27,7 +27,7 @@ export default function PresentationControls({
   useEffect(() => {
     const timer = setInterval(() => {
       if (output.current) {
-        const id = sceneAt(progress).id;
+        const id = sceneAt(Math.max(progress, scenes[1].startProgress)).audioId;
         output.current.textContent = `${id} · ${audio.getScenePosition(id).toFixed(2)}s · ${audio.playing ? "playing" : "paused"}`;
       }
     }, 150);

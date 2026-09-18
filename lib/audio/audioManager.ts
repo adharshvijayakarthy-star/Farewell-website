@@ -18,6 +18,20 @@ type Channel = {
   cancelLoad?: () => void;
 };
 
+type Crossfade = {
+  seconds: number;
+  outgoing: SceneId[];
+};
+
+const NORMAL_CROSSFADE_SECONDS = 0.65;
+const MAJOR_CROSSFADE_SECONDS = 1.1;
+const MAJOR_CROSSFADE_TRANSITIONS = new Set([
+  "scene00->scene01",
+  "scene01->scene02",
+  "scene02->scene05",
+  "scene06->scene09",
+]);
+
 export class AudioManager {
   readonly memory = new AudioMemory();
   private context?: AudioContext;
@@ -82,18 +96,29 @@ export class AudioManager {
         this.master.gain.value = this.volume;
         this.master.connect(this.context.destination);
       }
+      const activeChannel = this.active
+        ? this.getChannel(this.active)
+        : undefined;
+      // Request the intro immediately; some browsers leave resume() pending until a gesture.
+      if (this.active && (!activeChannel || activeChannel.audio.paused))
+        void this.play(this.active, ++this.generation);
       await this.context.resume();
       this.unlocked = true;
       this.paused = false;
       this.timer ??= setInterval(() => this.tick(), 30);
       this.emit();
-      if (this.active) await this.play(this.active, ++this.generation);
+      const resumedChannel = this.active
+        ? this.channels.get(this.active)
+        : undefined;
+      if (this.active && (!resumedChannel || resumedChannel.audio.paused))
+        await this.play(this.active, ++this.generation);
     } catch {
       this.warn("Playback unavailable; the visual journey continues.");
     }
   }
   enterScene(id: SceneId) {
     if (this.active === id) return;
+    const previous = this.active;
     this.active = id;
     clearTimeout(this.pending);
     const generation = ++this.generation;
@@ -103,26 +128,21 @@ export class AudioManager {
     if (!this.unlocked || this.paused) return;
     this.pending = setTimeout(() => {
       if (generation !== this.generation) return;
-      const next = this.config[id];
-      let exitDuration = 0;
-      for (const [other, ch] of this.channels) {
-        if (other === id || ch.audio.paused) continue;
-        const seconds =
-          next.transitionStyle === "hard-cut"
-            ? 0
-            : next.transitionStyle === "short"
-              ? 0.07
-              : Math.min(ch.config.fadeOut, next.transitionDuration);
-        exitDuration = Math.max(exitDuration, seconds);
-        this.leaveScene(other, seconds);
-      }
-      const delay =
-        next.transitionStyle === "crossfade" ? 0 : exitDuration * 1000;
-      this.pending = setTimeout(() => {
-        if (generation === this.generation && !this.paused)
-          void this.play(id, generation);
-      }, delay);
+      const outgoing = [...this.channels.entries()]
+        .filter(([other, ch]) => other !== id && !ch.audio.paused && !ch.failed)
+        .map(([other]) => other);
+      void this.play(id, generation, {
+        seconds: this.crossfadeDuration(previous, id),
+        outgoing,
+      });
     }, this.settleMs);
+  }
+
+  private crossfadeDuration(previous: SceneId | undefined, next: SceneId) {
+    if (!previous) return 0;
+    return MAJOR_CROSSFADE_TRANSITIONS.has(`${previous}->${next}`)
+      ? MAJOR_CROSSFADE_SECONDS
+      : NORMAL_CROSSFADE_SECONDS;
   }
   leaveScene(id: SceneId, seconds = this.config[id].fadeOut) {
     const c = this.channels.get(id);
@@ -158,6 +178,7 @@ export class AudioManager {
     )
       file = config.fallbackFile;
     audio.preload = config.preloadPriority;
+    audio.autoplay = !this.unlocked && id === "scene00";
     audio.src = file;
     const source = this.context.createMediaElementSource(audio),
       node = this.context.createGain();
@@ -182,7 +203,7 @@ export class AudioManager {
     });
     return c;
   }
-  private async play(id: SceneId, generation: number) {
+  private async play(id: SceneId, generation: number, crossfade?: Crossfade) {
     const channel = this.getChannel(id);
     if (!channel || channel.failed) return;
     clearTimeout(channel.stop);
@@ -232,18 +253,24 @@ export class AudioManager {
         c,
         this.memory.positions.get(id),
       );
+      if (crossfade) this.setGain(channel, 0);
       await channel.audio.play();
       if (generation !== this.generation || this.active !== id || this.paused) {
         channel.audio.pause();
         return;
       }
       const mobile = matchMedia("(max-width: 700px)").matches;
-      const seconds =
-        c.transitionStyle === "hard-cut"
+      const seconds = crossfade
+        ? crossfade.seconds
+        : c.transitionStyle === "hard-cut"
           ? 0
           : c.transitionStyle === "short"
             ? 0.09
             : Math.min(c.fadeIn, c.transitionDuration);
+      if (crossfade) {
+        for (const outgoing of crossfade.outgoing)
+          this.leaveScene(outgoing, crossfade.seconds);
+      }
       this.fade(
         channel,
         gain(c.volume * (mobile ? (c.mobileVolumeAdjustment ?? 1) : 1)),
@@ -264,7 +291,15 @@ export class AudioManager {
       p.cancelScheduledValues(now);
       p.setValueAtTime(p.value, now);
     }
-    p.linearRampToValueAtTime(value, now + seconds);
+    if (seconds <= 0) p.setValueAtTime(value, now);
+    else p.linearRampToValueAtTime(value, now + seconds);
+  }
+  private setGain(c: Channel, value: number) {
+    const now = this.context?.currentTime ?? 0,
+      p = c.gain.gain;
+    if (typeof p.cancelAndHoldAtTime === "function") p.cancelAndHoldAtTime(now);
+    else p.cancelScheduledValues(now);
+    p.setValueAtTime(value, now);
   }
   private tick() {
     for (const [id, ch] of this.channels) {

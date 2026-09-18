@@ -2,7 +2,7 @@
 
 # DISCO TILL DAWN — ✦ CELESTIAL ELEGANCE ✦
 
-A scroll-controlled farewell invitation for the graduating class of 2026. Next.js, strict TypeScript, React, Three.js / React Three Fiber, and original Blender assets. No backend, sign-in, RSVP, countdown, or commercial music.
+A scroll-controlled farewell invitation for the graduating class of 2026. Next.js, strict TypeScript, React, Three.js / React Three Fiber, and original Blender assets. No backend, sign-in, RSVP, or countdown.
 
 ## Run
 
@@ -15,7 +15,7 @@ Node.js 22+ recommended. `npm install`, `npm run dev`. For release: `npm run lin
 - `lib/scene/invitationCopy.ts`: authoritative text, punctuation and emojis.
 - `components/ui/SceneCopy.tsx`: readable HTML typography beats.
 - `components/experience/`: independently maintained environments, camera, mirrored hero assets, star field, book, dawn, and ticket.
-- `lib/audio/audioConfig.ts`: **the only file needed to add music**. See `public/audio/README.md`.
+- `lib/audio/audioConfig.ts`: the centralized soundtrack map. Production playback is Song0, Song1, Song2, Song5, Song6, then Song9; Song3, Song4, Song7, and Song8 are intentionally disabled. See `public/audio/README.md`.
 - `lib/scene/videoConfig.ts`: optional future clips and a 40-second total duration validator. This build uses **0 seconds of pre-rendered video**. All camera travel remains interactive.
 
 ## Original assets
@@ -26,4 +26,4 @@ Node.js 22+ recommended. `npm install`, `npm run dev`. For release: `npm run lin
 
 In development only, open `/?present=1` for restart, scene selection, animation pause/resume, and statistics. Production strips the controls. All meaningful text is HTML. The ticket is a native keyboard-operable button. Reduced motion disables ticket zoom and ambient rotation and stabilizes the camera. WebGL failure renders the full static invitation. Initial scroll restoration is disabled; reload starts at the ticket. Mobile uses different camera distances, particle budgets, lighting and object density.
 
-The experience is deliberately silent until supplied tracks are enabled. Do not add track filenames to any visual component.
+The automatic Troll opening is non-scroll-driven and hands off to the ticket through a particle morph. Audio attempts to start with the opening and also unlocks on the first gesture for browser autoplay policies. Do not add track filenames to any visual component.

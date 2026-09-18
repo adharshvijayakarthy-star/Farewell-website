@@ -28,19 +28,52 @@ const clip = (
   resumeMode: "remember",
   preloadPriority: "metadata",
 });
+
+const intentionallyUnused = (sceneId: SceneId): SceneAudioConfig => ({
+  sceneId,
+  enabled: false,
+  fullClip: true,
+  file: "",
+  segmentStart: 0,
+  segmentEnd: 0,
+  loopStart: 0,
+  loopEnd: 0,
+  volume: 0,
+  fadeIn: 0,
+  fadeOut: 0,
+  transitionDuration: 0,
+  mobileVolumeAdjustment: 1,
+  preloadPriority: "none",
+  resumeMode: "remember",
+  transitionStyle: "hard-cut",
+});
+
 export const audioConfig: AudioConfig = {
   scene00: clip("scene00", "/audio/Song0.Mp3", 16.056, "short"),
   scene01: clip("scene01", "/audio/Song1.Mp3", 16.056),
   scene02: clip("scene02", "/audio/Song2.Mp3", 27.048, "hard-cut"),
-  scene03: clip("scene03", "/audio/Song3.Mp3", 15.048),
-  scene04: clip("scene04", "/audio/Song4.Mp3", 31.056),
+  // Song3 is intentionally unused; scene03 inherits scene02's Song2 chapter.
+  scene03: intentionallyUnused("scene03"),
+  // Song4 is intentionally unused; scene04 inherits scene05's Song5 chapter.
+  scene04: intentionallyUnused("scene04"),
   scene05: clip("scene05", "/audio/Song5.Mp3", 16.056, "short"),
   scene06: clip("scene06", "/audio/Song6.Mp3", 18.048, "hard-cut"),
-  scene07: clip("scene07", "/audio/Song7.Mp3", 31.056),
-  scene08: clip("scene08", "/audio/Song8.Mp3", 25.056, "hard-cut"),
+  // Song7 is intentionally unused; scene07 remains inside Song6.
+  scene07: intentionallyUnused("scene07"),
+  // Song8 is never played. Its old scene endpoint is the end of scene08.
+  scene08: intentionallyUnused("scene08"),
   scene09: clip("scene09", "/audio/Song9.Mp3", 23.04),
 };
+export const playableAudioIds: SceneId[] = [
+  "scene00",
+  "scene01",
+  "scene02",
+  "scene05",
+  "scene06",
+  "scene09",
+];
+export const playableSongOrder = ["Song0", "Song1", "Song2", "Song5", "Song6", "Song9"] as const;
 /** A short settle avoids auditioning intermediate clips during fast scrolling. */
 export const AUDIO_SETTLE_MS = 110;
-// Production uses sequential fades or cuts: only one clip plays at a time.
-// Crossfade is supported for future use but deliberately not selected here.
+// The manager applies centralized crossfades at active soundtrack boundaries.
+// These values continue to describe the prepared clips' entry, exit, and resume behavior.

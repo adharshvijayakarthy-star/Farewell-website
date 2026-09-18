@@ -1,6 +1,13 @@
 # Adding music
 
-No songs are included or requested. All scenes run silently until enabled.
+The supplied clips are enabled for the production sequence:
+
+`Song0, Song1, Song2, Song5, Song6, Song9`
+
+Song3, Song4, Song7, and Song8 are intentionally not played. Song2 absorbs the
+old Song3 visual window; Song5 replaces the old Song4 chapter; Song6 continues
+through the old Song8 visual endpoint, which is used only as a timeline
+boundary. The MP3 files are used exactly as supplied.
 
 1. Put licensed audio in this folder. Use descriptive filenames. WebM/Opus is preferred; MP3 is widely supported. WAV works for development but is large.
 2. Edit **only `lib/audio/audioConfig.ts`**. Each `audioConfig.sceneXX` entry can override the shared defaults. Set `enabled: true` and a public URL such as `/audio/your-file.webm`. Optional `fallbackFile` can point to MP3. No scene component needs changing.
