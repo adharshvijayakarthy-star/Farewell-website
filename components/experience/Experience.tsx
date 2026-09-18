@@ -51,6 +51,7 @@ function Journey() {
     };
   }, []);
   useEffect(() => {
+    // Troll is the first application state — Song0 attempts immediately.
     audio.enterScene("scene00");
     void audio.unlock();
   }, [audio]);
@@ -62,6 +63,7 @@ function Journey() {
     };
   }, [entered, fallback, paused]);
   useEffect(() => {
+    // Scroll-driven chapters only after the visitor enters the journey.
     if (entered) audio.enterScene(activeScene);
   }, [audio, activeScene, entered]);
   useEffect(() => {
@@ -73,10 +75,21 @@ function Journey() {
       audio.resume();
     }
   }, [audio, progress]);
+  // Scene-state music handoff: Troll morph → real ticket / Scene 01 → Song1.
+  // Must NOT be tied to the main ticket click.
+  const handoffToScene01 = useCallback(() => {
+    audio.enterScene("scene01");
+  }, [audio]);
+  const completeTroll = useCallback(() => {
+    audio.enterScene("scene01");
+    setTrollComplete(true);
+  }, [audio]);
   function enter() {
     if (entering || entered) return;
     setEntering(true);
-    audio.enterScene("scene01");
+    // Visual/scroll entry only. Song1 is already active from the Troll handoff.
+    // unlock() is a safety retry if autoplay was still blocked — it does not
+    // change the active music scene.
     void audio.unlock();
     enterTimer.current = setTimeout(
       () => {
@@ -99,8 +112,8 @@ function Journey() {
   if (!trollComplete)
     return (
       <TrollOpening
-        onMusicHandoff={() => audio.enterScene("scene01")}
-        onComplete={() => setTrollComplete(true)}
+        onMusicHandoff={handoffToScene01}
+        onComplete={completeTroll}
       />
     );
   return (
@@ -119,7 +132,7 @@ function Journey() {
         />
         <div className="film-grain" aria-hidden="true" />
         <div className="vignette" aria-hidden="true" />
-        {!entered && <Ticket entering={entering} onEnter={enter} />}
+        {!entered && <Ticket entering={entering} onEnter={enter} fromMorph />}
         <SceneCopy progress={progress} entered={entered} />
         <ChapterTransition progress={progress} reduced={reduced} />
         {entered && progress < 0.115 && (

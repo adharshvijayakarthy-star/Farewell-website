@@ -3,13 +3,18 @@ import { useRef } from "react";
 export default function Ticket({
   onEnter,
   entering,
+  fromMorph = false,
 }: {
   onEnter: () => void;
   entering: boolean;
+  /** Continues the Troll morph — avoids a hard opacity swap into the live ticket. */
+  fromMorph?: boolean;
 }) {
   const ref = useRef<HTMLButtonElement>(null);
   return (
-    <div className={`ticket-stage ${entering ? "entering" : ""}`}>
+    <div
+      className={`ticket-stage ${entering ? "entering" : ""} ${fromMorph ? "from-morph" : ""}`}
+    >
       <div className="ticket-orbit" aria-hidden="true" />
       <button
         ref={ref}

@@ -8,6 +8,7 @@ import {
   getSceneStartPosition,
   validateAudioConfig,
 } from "./audioUtils";
+
 type Channel = {
   audio: HTMLAudioElement;
   gain: GainNode;
@@ -32,51 +33,81 @@ const MAJOR_CROSSFADE_TRANSITIONS = new Set([
   "scene06->scene09",
 ]);
 
+const DEBUG =
+  typeof process !== "undefined" && process.env.NODE_ENV === "development";
+
+function isAutoplayBlock(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const name = "name" in error ? String(error.name) : "";
+  return name === "NotAllowedError";
+}
+
 export class AudioManager {
   readonly memory = new AudioMemory();
   private context?: AudioContext;
   private master?: GainNode;
   private channels = new Map<SceneId, Channel>();
+  private preloaders = new Map<SceneId, HTMLAudioElement>();
   private active?: SceneId;
   private unlocked = false;
   private paused = false;
+  private autoplayBlocked = false;
   private volume = 1;
   private generation = 0;
   private timer?: ReturnType<typeof setInterval>;
   private pending?: ReturnType<typeof setTimeout>;
   private disabled = new Set<SceneId>();
   private listeners = new Set<() => void>();
+  private gestureCleanup?: () => void;
+  private unlocking?: Promise<void>;
+
   constructor(
     readonly config: AudioConfig = audioConfig,
     private settleMs = AUDIO_SETTLE_MS,
   ) {}
+
   get available() {
     return Object.values(this.config).some(
       (c) => c.enabled && !this.disabled.has(c.sceneId),
     );
   }
+
   get ready() {
     return this.unlocked;
   }
+
   get playing() {
     return (
       !this.paused &&
       [...this.channels.values()].some((c) => !c.audio.paused && !c.failed)
     );
   }
+
+  get activeScene() {
+    return this.active;
+  }
+
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
     return () => {
       this.listeners.delete(listener);
     };
   };
+
   private emit() {
     this.listeners.forEach((l) => l());
   }
-  private warn(message: string) {
-    if (process.env.NODE_ENV === "development")
-      console.warn("[Celestial audio]", message);
+
+  private log(message: string, detail?: unknown) {
+    if (!DEBUG) return;
+    if (detail !== undefined) console.info("[Celestial audio]", message, detail);
+    else console.info("[Celestial audio]", message);
   }
+
+  private warn(message: string) {
+    if (DEBUG) console.warn("[Celestial audio]", message);
+  }
+
   init() {
     for (const c of Object.values(this.config)) {
       const error = validateAudioConfig(c);
@@ -85,33 +116,104 @@ export class AudioManager {
         this.warn(error);
       }
     }
+    // Song0 must be ready as soon as the Troll mounts.
+    this.preload("scene00");
   }
-  private gestureCleanup?: () => void;
+
+  /** Warm a track without requiring AudioContext / unlock. */
+  preload(id: SceneId) {
+    const config = this.config[id];
+    if (
+      !config?.enabled ||
+      this.disabled.has(id) ||
+      this.preloaders.has(id) ||
+      this.channels.has(id) ||
+      typeof Audio === "undefined"
+    )
+      return;
+    const audio = new Audio();
+    audio.preload = id === "scene00" ? "auto" : config.preloadPriority;
+    audio.src = this.resolveFile(config, audio);
+    const onLoaded = () => this.log("file loaded", { scene: id, src: audio.src });
+    audio.addEventListener("loadeddata", onLoaded, { once: true });
+    audio.addEventListener(
+      "error",
+      () => this.warn("Preload failed for " + id),
+      { once: true },
+    );
+    audio.load();
+    this.preloaders.set(id, audio);
+    this.log("preload started", id);
+  }
+
+  private resolveFile(config: SceneAudioConfig, audio: HTMLAudioElement) {
+    const mobile =
+      typeof matchMedia === "function" &&
+      matchMedia("(max-width: 700px)").matches;
+    let file = mobile && config.mobileFile ? config.mobileFile : config.file;
+    if (
+      file.endsWith(".webm") &&
+      !audio.canPlayType('audio/webm; codecs="opus"') &&
+      config.fallbackFile
+    )
+      file = config.fallbackFile;
+    return file;
+  }
+
+  private isActiveAudible() {
+    if (!this.active || this.paused) return false;
+    const channel = this.channels.get(this.active);
+    return !!channel && !channel.failed && !channel.audio.paused;
+  }
+
+  private detachGestureUnlock() {
+    if (!this.gestureCleanup) return;
+    this.gestureCleanup();
+    this.gestureCleanup = undefined;
+  }
 
   private attachGestureUnlock() {
     if (this.gestureCleanup || typeof window === "undefined") return;
     const unlockHandler = () => {
-      void this.unlock().then(() => {
-        if (this.unlocked && this.gestureCleanup) {
-          this.gestureCleanup();
-          this.gestureCleanup = undefined;
-        }
-      });
+      this.log("interaction unlock occurred");
+      void this.unlock();
     };
-    const opts = { passive: true, capture: true };
+    const opts: AddEventListenerOptions = { passive: true, capture: true };
     window.addEventListener("pointerdown", unlockHandler, opts);
     window.addEventListener("touchstart", unlockHandler, opts);
     window.addEventListener("keydown", unlockHandler, opts);
+    window.addEventListener("click", unlockHandler, opts);
     this.gestureCleanup = () => {
       window.removeEventListener("pointerdown", unlockHandler, opts);
       window.removeEventListener("touchstart", unlockHandler, opts);
       window.removeEventListener("keydown", unlockHandler, opts);
+      window.removeEventListener("click", unlockHandler, opts);
     };
+    this.log("gesture unlock armed");
+  }
+
+  private syncGestureUnlock() {
+    if (this.isActiveAudible()) {
+      this.autoplayBlocked = false;
+      this.detachGestureUnlock();
+      return;
+    }
+    // Keep listening until the active soundtrack actually plays.
+    this.attachGestureUnlock();
   }
 
   async unlock() {
+    if (this.unlocking) return this.unlocking;
+    this.unlocking = this.performUnlock().finally(() => {
+      this.unlocking = undefined;
+    });
+    return this.unlocking;
+  }
+
+  private async performUnlock() {
     this.init();
     if (!this.available) return;
+
     try {
       if (!this.context) {
         const AudioCtx =
@@ -124,52 +226,79 @@ export class AudioManager {
         this.master = this.context.createGain();
         this.master.gain.value = this.volume;
         this.master.connect(this.context.destination);
+        this.log("AudioContext created", this.context.state);
       }
       if (this.context.state === "suspended") {
         await this.context.resume();
+        this.log("AudioContext resume", this.context.state);
       }
       const isRunning =
         !this.context.state || this.context.state === "running";
+      // Context may be running while media play() is still blocked.
+      // Do NOT treat context-running as "playback unlocked" for gesture cleanup.
       this.unlocked = isRunning;
       this.paused = false;
-      if (isRunning) {
-        this.timer ??= setInterval(() => this.tick(), 30);
-        if (this.gestureCleanup) {
-          this.gestureCleanup();
-          this.gestureCleanup = undefined;
-        }
-      }
+      if (isRunning) this.timer ??= setInterval(() => this.tick(), 30);
       this.emit();
-      // Now attempt to play the active scene (Song0 during Troll).
+
       if (this.active) {
         const channel = this.channels.get(this.active);
-        if (!channel || channel.audio.paused)
+        if (!channel || channel.audio.paused || this.autoplayBlocked) {
+          this.log("play attempted after unlock", this.active);
           await this.play(this.active, ++this.generation);
+        }
       }
-    } catch {
+    } catch (error) {
       this.warn("Playback unavailable; the visual journey continues.");
+      this.log("unlock failed", error);
     }
 
-    // If still blocked by browser autoplay policy, arm gesture unlock on first user action
-    if (!this.unlocked && typeof window !== "undefined") {
-      this.attachGestureUnlock();
-    }
+    this.syncGestureUnlock();
   }
+
   enterScene(id: SceneId) {
-    if (this.active === id) return;
+    if (this.active === id) {
+      // Same scene: still recover if unlock succeeded but playback never started.
+      if (
+        this.unlocked &&
+        !this.paused &&
+        (!this.isActiveAudible() || this.autoplayBlocked)
+      ) {
+        this.log("scene changed (ensure playing)", id);
+        void this.play(id, ++this.generation);
+      }
+      return;
+    }
+
     const previous = this.active;
     this.active = id;
+    this.log("scene changed", { from: previous, to: id });
     clearTimeout(this.pending);
     const generation = ++this.generation;
+
     for (const [other, ch] of this.channels)
       if (!ch.audio.paused)
         this.memory.rememberScenePosition(other, ch.audio.currentTime);
-    if (!this.unlocked || this.paused) return;
+
+    // Progressive preload of upcoming chapters.
+    this.preload(id);
+
+    if (!this.unlocked || this.paused) {
+      // Intent is remembered in `active`; unlock()/gesture will start it.
+      this.syncGestureUnlock();
+      return;
+    }
+
     this.pending = setTimeout(() => {
       if (generation !== this.generation) return;
       const outgoing = [...this.channels.entries()]
         .filter(([other, ch]) => other !== id && !ch.audio.paused && !ch.failed)
         .map(([other]) => other);
+      this.log("audio transition started", {
+        to: id,
+        outgoing,
+        seconds: this.crossfadeDuration(previous, id),
+      });
       void this.play(id, generation, {
         seconds: this.crossfadeDuration(previous, id),
         outgoing,
@@ -183,6 +312,7 @@ export class AudioManager {
       ? MAJOR_CROSSFADE_SECONDS
       : NORMAL_CROSSFADE_SECONDS;
   }
+
   leaveScene(id: SceneId, seconds = this.config[id].fadeOut) {
     const c = this.channels.get(id);
     if (!c) return;
@@ -196,6 +326,7 @@ export class AudioManager {
     if (seconds === 0) stop();
     else c.stop = setTimeout(stop, seconds * 1000);
   }
+
   private getChannel(id: SceneId) {
     const existing = this.channels.get(id);
     if (existing) return existing;
@@ -207,25 +338,28 @@ export class AudioManager {
       !this.master
     )
       return;
-    const audio = new Audio();
-    const mobile = matchMedia("(max-width: 700px)").matches;
-    let file = mobile && config.mobileFile ? config.mobileFile : config.file;
-    if (
-      file.endsWith(".webm") &&
-      !audio.canPlayType('audio/webm; codecs="opus"') &&
-      config.fallbackFile
-    )
-      file = config.fallbackFile;
-    audio.preload = config.preloadPriority;
-    audio.autoplay = !this.unlocked && id === "scene00";
-    audio.src = file;
-    const source = this.context.createMediaElementSource(audio),
-      node = this.context.createGain();
+
+    const preloaded = this.preloaders.get(id);
+    const audio = preloaded ?? new Audio();
+    if (preloaded) this.preloaders.delete(id);
+
+    const file = this.resolveFile(config, audio);
+    if (!audio.src) {
+      audio.preload = config.preloadPriority;
+      audio.src = file;
+    }
+    // HTML autoplay attribute is unreliable with Web Audio routing; playback
+    // is always driven explicitly via play() after unlock/gesture.
+
+    const source = this.context.createMediaElementSource(audio);
+    const node = this.context.createGain();
     node.gain.value = 0;
     source.connect(node);
     node.connect(this.master);
+
     const c: Channel = { audio, source, gain: node, config, failed: false };
     this.channels.set(id, c);
+
     audio.addEventListener("error", () => {
       c.failed = true;
       this.disabled.add(id);
@@ -233,19 +367,32 @@ export class AudioManager {
       this.warn("Unavailable asset for " + id);
       this.emit();
     });
+    audio.addEventListener("loadeddata", () => {
+      this.log("file loaded", { scene: id, duration: audio.duration });
+    });
     audio.addEventListener("ended", () => {
       if (this.active === id && !this.paused) {
         this.memory.looped.add(id);
         audio.currentTime = c.config.loopStart;
-        void audio.play().catch(() => this.emit());
+        void audio.play().catch((error) => {
+          if (isAutoplayBlock(error)) {
+            this.autoplayBlocked = true;
+            this.syncGestureUnlock();
+          }
+          this.emit();
+        });
       }
     });
     return c;
   }
+
   private async play(id: SceneId, generation: number, crossfade?: Crossfade) {
     const channel = this.getChannel(id);
     if (!channel || channel.failed) return;
+
     clearTimeout(channel.stop);
+    this.log("play attempted", id);
+
     try {
       if (channel.audio.readyState < 1)
         await new Promise<void>((resolve, reject) => {
@@ -269,8 +416,10 @@ export class AudioManager {
           a.addEventListener("loadedmetadata", done);
           a.addEventListener("error", fail);
         });
+
       if (generation !== this.generation || this.active !== id || this.paused)
         return;
+
       const c = channel.config;
       if (c.fullClip) {
         c.segmentStart = c.loopStart = 0;
@@ -286,6 +435,7 @@ export class AudioManager {
         this.emit();
         return;
       }
+
       if (c.resumeMode === "restart") this.memory.reset(id);
       clearTimeout(channel.stop);
       channel.audio.currentTime = getSceneStartPosition(
@@ -293,12 +443,20 @@ export class AudioManager {
         this.memory.positions.get(id),
       );
       if (crossfade) this.setGain(channel, 0);
+
       await channel.audio.play();
+
       if (generation !== this.generation || this.active !== id || this.paused) {
         channel.audio.pause();
         return;
       }
-      const mobile = matchMedia("(max-width: 700px)").matches;
+
+      this.autoplayBlocked = false;
+      this.log("play succeeded", id);
+
+      const mobile =
+        typeof matchMedia === "function" &&
+        matchMedia("(max-width: 700px)").matches;
       const seconds = crossfade
         ? crossfade.seconds
         : c.transitionStyle === "hard-cut"
@@ -306,25 +464,45 @@ export class AudioManager {
           : c.transitionStyle === "short"
             ? 0.09
             : Math.min(c.fadeIn, c.transitionDuration);
+
       if (crossfade) {
         for (const outgoing of crossfade.outgoing)
           this.leaveScene(outgoing, crossfade.seconds);
       }
+
       this.fade(
         channel,
         gain(c.volume * (mobile ? (c.mobileVolumeAdjustment ?? 1) : 1)),
         seconds,
       );
+
+      if (crossfade) {
+        const doneMs = Math.max(0, seconds) * 1000 + 20;
+        setTimeout(() => {
+          if (this.active === id)
+            this.log("audio transition completed", { scene: id });
+        }, doneMs);
+      }
+
+      this.syncGestureUnlock();
       this.emit();
-    } catch {
-      this.warn("Audio could not start: " + id);
+    } catch (error) {
+      if (isAutoplayBlock(error)) {
+        this.autoplayBlocked = true;
+        this.log("autoplay blocked", { scene: id, error });
+        this.syncGestureUnlock();
+      } else {
+        this.warn("Audio could not start: " + id);
+        this.log("play failed", { scene: id, error });
+      }
       this.emit();
     }
   }
+
   private fade(c: Channel, value: number, seconds: number) {
     clearTimeout(c.stop);
-    const now = this.context?.currentTime ?? 0,
-      p = c.gain.gain;
+    const now = this.context?.currentTime ?? 0;
+    const p = c.gain.gain;
     if (typeof p.cancelAndHoldAtTime === "function") p.cancelAndHoldAtTime(now);
     else {
       p.cancelScheduledValues(now);
@@ -333,18 +511,24 @@ export class AudioManager {
     if (seconds <= 0) p.setValueAtTime(value, now);
     else p.linearRampToValueAtTime(value, now + seconds);
   }
+
   private setGain(c: Channel, value: number) {
-    const now = this.context?.currentTime ?? 0,
-      p = c.gain.gain;
+    const now = this.context?.currentTime ?? 0;
+    const p = c.gain.gain;
     if (typeof p.cancelAndHoldAtTime === "function") p.cancelAndHoldAtTime(now);
     else p.cancelScheduledValues(now);
     p.setValueAtTime(value, now);
   }
+
   private tick() {
     for (const [id, ch] of this.channels) {
       if (ch.audio.paused) continue;
-      const t = ch.audio.currentTime,
-        next = calculateLoopPosition(t, ch.config, this.memory.looped.has(id));
+      const t = ch.audio.currentTime;
+      const next = calculateLoopPosition(
+        t,
+        ch.config,
+        this.memory.looped.has(id),
+      );
       if (next !== t) {
         ch.audio.currentTime = next;
         this.memory.looped.add(id);
@@ -352,6 +536,7 @@ export class AudioManager {
       this.memory.rememberScenePosition(id, ch.audio.currentTime);
     }
   }
+
   pause() {
     this.paused = true;
     this.generation++;
@@ -363,6 +548,7 @@ export class AudioManager {
     }
     this.emit();
   }
+
   resume() {
     this.paused = false;
     if (this.unlocked && this.active) {
@@ -370,6 +556,7 @@ export class AudioManager {
       void this.play(this.active, ++this.generation);
     } else void this.unlock();
   }
+
   setMasterVolume(value: number) {
     this.volume = gain(value);
     this.master?.gain.setTargetAtTime(
@@ -378,6 +565,7 @@ export class AudioManager {
       0.04,
     );
   }
+
   seekScene(id: SceneId, time: number) {
     const c = this.channels.get(id)?.config ?? this.config[id];
     const t = Math.max(c.segmentStart, Math.min(c.segmentEnd - 0.001, time));
@@ -385,25 +573,31 @@ export class AudioManager {
     const channel = this.channels.get(id);
     if (channel) channel.audio.currentTime = t;
   }
+
   getScenePosition(id: SceneId) {
     return (
       this.memory.positions.get(id) ?? getSceneStartPosition(this.config[id])
     );
   }
+
   resetScenePosition(id: SceneId) {
     this.memory.reset(id);
     const c = this.channels.get(id);
     if (c) c.audio.currentTime = getSceneStartPosition(c.config);
   }
+
   destroy() {
     this.generation++;
     clearTimeout(this.pending);
     clearInterval(this.timer);
     this.timer = undefined;
-    if (this.gestureCleanup) {
-      this.gestureCleanup();
-      this.gestureCleanup = undefined;
+    this.detachGestureUnlock();
+    for (const audio of this.preloaders.values()) {
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
     }
+    this.preloaders.clear();
     for (const c of this.channels.values()) {
       clearTimeout(c.stop);
       c.cancelLoad?.();
@@ -418,5 +612,6 @@ export class AudioManager {
     this.context = undefined;
     this.master = undefined;
     this.unlocked = false;
+    this.autoplayBlocked = false;
   }
 }

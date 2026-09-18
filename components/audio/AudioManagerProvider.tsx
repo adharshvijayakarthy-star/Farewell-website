@@ -10,6 +10,8 @@ export function AudioManagerProvider({
   const [manager] = useState(() => new AudioManager());
   useEffect(() => {
     manager.init();
+    // Immediate Song0 warm-load for the Troll opening.
+    manager.preload("scene00");
     const onVisibility = () => {
       if (document.hidden) manager.pause();
     };

@@ -504,6 +504,22 @@ button {
     translate: 0 0;
   }
 }
+/* Morph canvas already constructed the ticket — settle only, no opacity swap. */
+.ticket-stage.from-morph .ticket {
+  animation:
+    ticket-settle-from-morph 0.45s ease both,
+    ticket-float 9s ease-in-out 0.45s infinite;
+}
+@keyframes ticket-settle-from-morph {
+  from {
+    opacity: 0.97;
+    filter: blur(0.4px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
 @keyframes shimmer {
   0%,
   100% {

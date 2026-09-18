@@ -49,7 +49,10 @@ const intentionallyUnused = (sceneId: SceneId): SceneAudioConfig => ({
 });
 
 export const audioConfig: AudioConfig = {
-  scene00: clip("scene00", "/audio/Song0.Mp3", 16.056, "short"),
+  scene00: {
+    ...clip("scene00", "/audio/Song0.Mp3", 16.056, "short"),
+    preloadPriority: "auto",
+  },
   scene01: clip("scene01", "/audio/Song1.Mp3", 16.056),
   scene02: clip("scene02", "/audio/Song2.Mp3", 27.048, "hard-cut"),
   // Song3 is intentionally unused; scene03 inherits scene02's Song2 chapter.

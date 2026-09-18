@@ -101,15 +101,26 @@ type Particle = {
   y: number;
   targetX: number;
   targetY: number;
+  edgeX: number;
+  edgeY: number;
+  driftX: number;
+  driftY: number;
   velocityX: number;
   velocityY: number;
   size: number;
   alpha: number;
+  role: "edge" | "interior" | "drift";
+  shimmer: number;
 };
 
 function ease(value: number) {
   const clamped = Math.max(0, Math.min(1, value));
   return clamped * clamped * (3 - 2 * clamped);
+}
+
+function smoothstep(edge0: number, edge1: number, x: number) {
+  if (edge1 <= edge0) return x >= edge1 ? 1 : 0;
+  return ease((x - edge0) / (edge1 - edge0));
 }
 
 function drawTicketPath(
@@ -121,7 +132,7 @@ function drawTicketPath(
   radius: number,
 ) {
   context.beginPath();
-  context.roundRect(x, y, width, height, radius);
+  context.roundRect(x, y, width, height, Math.max(0.01, radius));
 }
 
 /** Interpolate between two "r,g,b" color strings. */
@@ -147,7 +158,9 @@ function MorphCanvas({
   const frame = useRef<number>(0);
   const handedOff = useRef(false);
   const completed = useRef(false);
-  const duration = 4_000;
+  // ~5.6s morph keeps dissolve+morph in the existing 6–8s window while
+  // giving the construction stages more intermediate states.
+  const duration = 5_600;
 
   useEffect(() => {
     if (!active || !canvas.current) return;
@@ -158,53 +171,81 @@ function MorphCanvas({
     const width = (element.width = window.innerWidth);
     const height = (element.height = window.innerHeight);
     const isMobile = width < 700;
+    // Final ticket geometry — matches the existing Ticket component.
     const ticketWidth = isMobile ? width * 0.82 : Math.min(650, width * 0.75);
     const ticketHeight = isMobile ? 240 : 322;
     const ticketX = (width - ticketWidth) / 2;
     const ticketY = (height - ticketHeight) / 2;
-    const ticketRadius = 15;
+    const finalRadius = 15;
     const stubWidth = isMobile ? 51 : 102;
     const stubDividerX = ticketX + ticketWidth - stubWidth;
+    const finalRotation = isMobile ? -8 : -7;
 
-    const particleCount = Math.min(700, Math.max(260, Math.floor((width * height) / 2_400)));
+    const particleCount = Math.min(
+      700,
+      Math.max(260, Math.floor((width * height) / 2_400)),
+    );
     const particles: Particle[] = [];
 
     const centerX = ticketX + ticketWidth / 2;
     const centerY = ticketY + ticketHeight / 2;
 
-    for (let i = 0; i < particleCount; i += 1) {
+    const perimeterPoint = (t: number) => {
       const perimeter = 2 * (ticketWidth + ticketHeight);
-      const perimeterPosition = Math.random() * perimeter;
-      let targetX = ticketX + Math.random() * ticketWidth;
-      let targetY = ticketY + Math.random() * ticketHeight;
+      const p = ((t % 1) + 1) % 1 * perimeter;
+      if (p < ticketWidth) return { x: ticketX + p, y: ticketY };
+      if (p < ticketWidth + ticketHeight)
+        return { x: ticketX + ticketWidth, y: ticketY + p - ticketWidth };
+      if (p < 2 * ticketWidth + ticketHeight)
+        return {
+          x: ticketX + ticketWidth - (p - ticketWidth - ticketHeight),
+          y: ticketY + ticketHeight,
+        };
+      return {
+        x: ticketX,
+        y: ticketY + ticketHeight - (p - 2 * ticketWidth - ticketHeight),
+      };
+    };
 
-      if (i < particleCount * 0.45) {
-        if (perimeterPosition < ticketWidth) {
-          targetX = ticketX + perimeterPosition;
-          targetY = ticketY;
-        } else if (perimeterPosition < ticketWidth + ticketHeight) {
-          targetX = ticketX + ticketWidth;
-          targetY = ticketY + perimeterPosition - ticketWidth;
-        } else if (perimeterPosition < 2 * ticketWidth + ticketHeight) {
-          targetX = ticketX + ticketWidth - (perimeterPosition - ticketWidth - ticketHeight);
-          targetY = ticketY + ticketHeight;
-        } else {
-          targetX = ticketX;
-          targetY = ticketY + ticketHeight - (perimeterPosition - 2 * ticketWidth - ticketHeight);
-        }
-      }
+    for (let i = 0; i < particleCount; i += 1) {
+      const perimeterPosition = Math.random();
+      const edge = perimeterPoint(perimeterPosition);
+      // Soft jitter so the edge doesn't look like a UI stroke.
+      const edgeX = edge.x + (Math.random() - 0.5) * 3;
+      const edgeY = edge.y + (Math.random() - 0.5) * 3;
+      let interiorX = ticketX + Math.random() * ticketWidth;
+      let interiorY = ticketY + Math.random() * ticketHeight;
 
-      // 25% of particles originate from the reflection zone below the text and trail upward
+      const isEdge = i < particleCount * 0.48;
+      const isDrift = i >= particleCount * 0.78;
+      const role: Particle["role"] = isEdge
+        ? "edge"
+        : isDrift
+          ? "drift"
+          : "interior";
+
+      const gatherX = isEdge ? edgeX : interiorX;
+      const gatherY = isEdge ? edgeY : interiorY;
+
+      const driftAngle = Math.random() * Math.PI * 2;
+      const driftDist = 40 + Math.random() * Math.min(width, height) * 0.18;
+
       if (i < particleCount * 0.25) {
         particles.push({
           x: centerX + (Math.random() - 0.5) * ticketWidth * 0.8,
           y: centerY + 50 + Math.random() * 100,
-          targetX,
-          targetY,
+          targetX: gatherX,
+          targetY: gatherY,
+          edgeX,
+          edgeY,
+          driftX: centerX + Math.cos(driftAngle) * (ticketWidth * 0.55 + driftDist),
+          driftY: centerY + Math.sin(driftAngle) * (ticketHeight * 0.55 + driftDist),
           velocityX: (Math.random() - 0.5) * 0.5,
           velocityY: -0.8 - Math.random() * 1.2,
           size: 1 + Math.random() * 1.7,
           alpha: 0,
+          role,
+          shimmer: Math.random() * Math.PI * 2,
         });
       } else {
         const angle = Math.random() * Math.PI * 2;
@@ -212,12 +253,18 @@ function MorphCanvas({
         particles.push({
           x: width / 2 + Math.cos(angle) * distance,
           y: height / 2 + Math.sin(angle) * distance,
-          targetX,
-          targetY,
+          targetX: gatherX,
+          targetY: gatherY,
+          edgeX,
+          edgeY,
+          driftX: centerX + Math.cos(driftAngle) * (ticketWidth * 0.55 + driftDist),
+          driftY: centerY + Math.sin(driftAngle) * (ticketHeight * 0.55 + driftDist),
           velocityX: 0,
           velocityY: 0,
           size: 1 + Math.random() * 1.8,
           alpha: 0,
+          role,
+          shimmer: Math.random() * Math.PI * 2,
         });
       }
     }
@@ -226,46 +273,314 @@ function MorphCanvas({
     handedOff.current = false;
     completed.current = false;
 
-    // Color stops for gradual progression:
-    // BLACK → WHITE PARTICLES → PEARL → SOFT VIOLET → PINK → CYAN → CHAMPAGNE / CHROME → FULL TICKET
     const colorStops: { at: number; color: string }[] = [
-      { at: 0.0, color: "255,255,255" },     // White
-      { at: 0.18, color: "241,233,224" },    // Pearl
-      { at: 0.35, color: "208,185,232" },    // Soft violet
-      { at: 0.50, color: "231,180,212" },    // Pink
-      { at: 0.68, color: "180,230,225" },    // Cyan
-      { at: 0.85, color: "216,195,157" },    // Champagne
-      { at: 1.0, color: "218,200,165" },     // Warm chrome
+      { at: 0.0, color: "255,255,255" },
+      { at: 0.18, color: "241,233,224" },
+      { at: 0.35, color: "208,185,232" },
+      { at: 0.5, color: "231,180,212" },
+      { at: 0.68, color: "180,230,225" },
+      { at: 0.85, color: "216,195,157" },
+      { at: 1.0, color: "218,200,165" },
     ];
 
     function getColor(progress: number): string {
       for (let i = 0; i < colorStops.length - 1; i++) {
         if (progress <= colorStops[i + 1].at) {
-          const t = (progress - colorStops[i].at) / (colorStops[i + 1].at - colorStops[i].at);
+          const t =
+            (progress - colorStops[i].at) /
+            (colorStops[i + 1].at - colorStops[i].at);
           return lerpColor(colorStops[i].color, colorStops[i + 1].color, t);
         }
       }
       return colorStops[colorStops.length - 1].color;
     }
 
+    function drawConstructedTicket(
+      ctx: CanvasRenderingContext2D,
+      progress: number,
+      radius: number,
+    ) {
+      const surface = smoothstep(0.58, 0.76, progress);
+      const detail = smoothstep(0.7, 0.9, progress);
+      const iridescence = smoothstep(0.62, 0.88, progress);
+      const depth = smoothstep(0.8, 0.94, progress);
+
+      // Soft shadow develops with depth — never full strength at once.
+      if (depth > 0.01) {
+        ctx.save();
+        ctx.shadowColor = `rgba(0,0,0,${0.45 * depth})`;
+        ctx.shadowBlur = 28 + 40 * depth;
+        ctx.shadowOffsetX = 6 * depth;
+        ctx.shadowOffsetY = 22 * depth;
+        drawTicketPath(ctx, ticketX, ticketY, ticketWidth, ticketHeight, radius);
+        ctx.fillStyle = `rgba(8,12,27,${0.35 * depth})`;
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // Surface grows from center via radial expansion (not a full-card fade-in).
+      if (surface > 0.001) {
+        ctx.save();
+        drawTicketPath(ctx, ticketX, ticketY, ticketWidth, ticketHeight, radius);
+        ctx.clip();
+
+        const maxR = Math.hypot(ticketWidth, ticketHeight) * 0.72;
+        const revealR = Math.max(1, maxR * surface);
+        const pearl = ctx.createRadialGradient(
+          centerX,
+          centerY,
+          0,
+          centerX,
+          centerY,
+          revealR,
+        );
+        // Restrained holographic progression: pearl → lavender → pink → cyan → warm pearl
+        const a = Math.min(1, surface * 1.05);
+        pearl.addColorStop(0, `rgba(245, 238, 230, ${0.92 * a})`);
+        pearl.addColorStop(
+          0.22,
+          `rgba(220, 210, 236, ${0.88 * a * (0.55 + 0.45 * iridescence)})`,
+        );
+        pearl.addColorStop(
+          0.45,
+          `rgba(247, 220, 228, ${0.86 * a * (0.4 + 0.6 * iridescence)})`,
+        );
+        pearl.addColorStop(
+          0.68,
+          `rgba(200, 228, 226, ${0.84 * a * (0.35 + 0.65 * iridescence)})`,
+        );
+        pearl.addColorStop(0.88, `rgba(236, 226, 208, ${0.9 * a})`);
+        pearl.addColorStop(1, `rgba(236, 226, 208, 0)`);
+        ctx.fillStyle = pearl;
+        ctx.fillRect(
+          centerX - revealR,
+          centerY - revealR,
+          revealR * 2,
+          revealR * 2,
+        );
+
+        // Full gradient fills in as the radial reveal completes.
+        if (surface > 0.55) {
+          const fillIn = ease((surface - 0.55) / 0.45);
+          const ticketGradient = ctx.createLinearGradient(
+            ticketX,
+            ticketY,
+            ticketX + ticketWidth,
+            ticketY + ticketHeight,
+          );
+          ticketGradient.addColorStop(0, `rgba(240, 227, 204, ${fillIn * 0.95})`);
+          ticketGradient.addColorStop(0.2, `rgba(219, 225, 246, ${fillIn * 0.95})`);
+          ticketGradient.addColorStop(0.34, `rgba(188, 180, 224, ${fillIn * 0.95})`);
+          ticketGradient.addColorStop(0.49, `rgba(247, 226, 218, ${fillIn * 0.95})`);
+          ticketGradient.addColorStop(0.64, `rgba(216, 238, 221, ${fillIn * 0.95})`);
+          ticketGradient.addColorStop(0.81, `rgba(197, 201, 238, ${fillIn * 0.95})`);
+          ticketGradient.addColorStop(1, `rgba(233, 224, 203, ${fillIn * 0.98})`);
+          ctx.globalAlpha = fillIn;
+          ctx.fillStyle = ticketGradient;
+          ctx.fillRect(ticketX, ticketY, ticketWidth, ticketHeight);
+          ctx.globalAlpha = 1;
+        }
+
+        // Subtle bevel / edge highlight as depth develops.
+        if (depth > 0.05) {
+          const bevel = ctx.createLinearGradient(
+            ticketX,
+            ticketY,
+            ticketX,
+            ticketY + ticketHeight,
+          );
+          bevel.addColorStop(0, `rgba(255,255,255,${0.22 * depth})`);
+          bevel.addColorStop(0.45, `rgba(255,255,255,0)`);
+          bevel.addColorStop(1, `rgba(40,35,70,${0.12 * depth})`);
+          ctx.fillStyle = bevel;
+          ctx.fillRect(ticketX, ticketY, ticketWidth, ticketHeight);
+        }
+
+        ctx.restore();
+      }
+
+      // Outer luminous edge — particles appear to lock into the frame.
+      const edgeStrength = smoothstep(0.46, 0.7, progress);
+      if (edgeStrength > 0.01) {
+        drawTicketPath(ctx, ticketX, ticketY, ticketWidth, ticketHeight, radius);
+        ctx.strokeStyle = `rgba(255, 255, 255, ${0.35 + edgeStrength * 0.55})`;
+        ctx.lineWidth = 1.2 + edgeStrength * 0.6;
+        ctx.stroke();
+        drawTicketPath(ctx, ticketX, ticketY, ticketWidth, ticketHeight, radius);
+        ctx.strokeStyle = `rgba(200, 190, 230, ${edgeStrength * 0.35})`;
+        ctx.lineWidth = 3.5;
+        ctx.stroke();
+      }
+
+      // Progressive interior details (layers, not all at once).
+      if (detail > 0.01) {
+        ctx.save();
+        drawTicketPath(ctx, ticketX, ticketY, ticketWidth, ticketHeight, radius);
+        ctx.clip();
+
+        const ink = `rgba(39, 37, 57, ${detail})`;
+        const muted = `rgba(39, 37, 57, ${detail * 0.72})`;
+
+        // 1–2. Inner border
+        const inner = smoothstep(0.72, 0.82, progress);
+        if (inner > 0) {
+          drawTicketPath(
+            ctx,
+            ticketX + 10,
+            ticketY + 10,
+            ticketWidth - 20,
+            ticketHeight - 20,
+            Math.max(2, radius - 6),
+          );
+          ctx.strokeStyle = `rgba(86, 81, 106, ${inner * 0.45})`;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+
+        // 3. Stub divider
+        const stubLine = smoothstep(0.74, 0.84, progress);
+        if (stubLine > 0) {
+          ctx.setLineDash([4, 4]);
+          ctx.beginPath();
+          ctx.moveTo(stubDividerX, ticketY + 12);
+          ctx.lineTo(stubDividerX, ticketY + ticketHeight - 12);
+          ctx.strokeStyle = `rgba(87, 81, 108, ${stubLine * 0.55})`;
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+
+        // 4. Major title block first
+        const titleA = smoothstep(0.76, 0.88, progress);
+        if (titleA > 0) {
+          ctx.fillStyle = `rgba(39, 37, 57, ${titleA})`;
+          ctx.textAlign = "left";
+          ctx.textBaseline = "top";
+          const titleSize = isMobile ? ticketWidth * 0.11 : ticketWidth * 0.103;
+          ctx.font = `500 ${titleSize}px "Fraunces Variable", Georgia, serif`;
+          ctx.fillText("DISCO", ticketX + (isMobile ? 22 : 38), ticketY + ticketHeight * 0.32);
+          ctx.font = `400 ${titleSize * 0.86}px "Fraunces Variable", Georgia, serif`;
+          ctx.fillText(
+            "TILL DAWN",
+            ticketX + (isMobile ? 22 : 38),
+            ticketY + ticketHeight * 0.32 + titleSize * 0.92,
+          );
+        }
+
+        // 5. Celestial branding
+        const brandA = smoothstep(0.8, 0.9, progress);
+        if (brandA > 0) {
+          ctx.fillStyle = `rgba(39, 37, 57, ${brandA * 0.85})`;
+          ctx.font = `600 ${isMobile ? 8 : 10}px Manrope, Arial, sans-serif`;
+          ctx.letterSpacing = "0.25em";
+          ctx.fillText(
+            "✦ CELESTIAL ELEGANCE ✦",
+            ticketX + (isMobile ? 22 : 38),
+            ticketY + (isMobile ? 18 : 28),
+          );
+          ctx.letterSpacing = "0px";
+          ctx.font = `${isMobile ? 26 : 40}px "Fraunces Variable", Georgia, serif`;
+          ctx.fillStyle = `rgba(39, 37, 57, ${brandA * 0.55})`;
+          ctx.fillText(
+            "✧",
+            stubDividerX - (isMobile ? 36 : 52),
+            ticketY + (isMobile ? 14 : 22),
+          );
+        }
+
+        // 6–8. Right stub + barcode + date/class
+        const stubA = smoothstep(0.84, 0.94, progress);
+        if (stubA > 0) {
+          ctx.fillStyle = muted;
+          ctx.textAlign = "center";
+          ctx.font = `600 ${isMobile ? 9 : 11}px Manrope, Arial, sans-serif`;
+          const stubCx = stubDividerX + stubWidth / 2;
+          ctx.fillText("✦", stubCx, ticketY + ticketHeight * 0.14);
+          ctx.save();
+          ctx.translate(stubCx, centerY);
+          ctx.rotate(Math.PI / 2);
+          ctx.font = `600 ${isMobile ? 8 : 10}px Manrope, Arial, sans-serif`;
+          ctx.fillText("DISCO TILL DAWN", 0, 0);
+          ctx.restore();
+
+          const barW = isMobile ? 36 : 48;
+          const barH = isMobile ? 22 : 31;
+          const barX = stubCx - barW / 2;
+          const barY = ticketY + ticketHeight * 0.62;
+          for (let bx = 0; bx < barW; bx += 3) {
+            const thick = bx % 7 < 3 ? 1.2 : 0.7;
+            ctx.fillStyle = `rgba(72, 68, 91, ${stubA * 0.7})`;
+            ctx.fillRect(barX + bx, barY, thick, barH);
+          }
+          ctx.fillStyle = muted;
+          ctx.font = `600 ${isMobile ? 9 : 11}px Manrope, Arial, sans-serif`;
+          ctx.fillText("2026", stubCx, ticketY + ticketHeight * 0.88);
+        }
+
+        const bottomA = smoothstep(0.86, 0.96, progress);
+        if (bottomA > 0) {
+          ctx.textAlign = "left";
+          ctx.fillStyle = `rgba(39, 37, 57, ${bottomA * 0.85})`;
+          ctx.font = `600 ${isMobile ? 8 : 10}px Manrope, Arial, sans-serif`;
+          const by = ticketY + ticketHeight - (isMobile ? 22 : 28);
+          ctx.fillText("14 · 11 · 26", ticketX + (isMobile ? 22 : 38), by);
+          ctx.textAlign = "right";
+          ctx.fillText(
+            "CLASS OF 2026",
+            stubDividerX - (isMobile ? 14 : 20),
+            by,
+          );
+        }
+
+        // 9. Soft surface highlight sweep
+        const sheen = smoothstep(0.88, 0.98, progress);
+        if (sheen > 0) {
+          const light = ctx.createLinearGradient(
+            ticketX,
+            ticketY,
+            ticketX + ticketWidth,
+            ticketY + ticketHeight,
+          );
+          light.addColorStop(0, "rgba(255,255,255,0)");
+          light.addColorStop(0.45, `rgba(255,255,255,${0.14 * sheen})`);
+          light.addColorStop(1, "rgba(255,255,255,0)");
+          ctx.fillStyle = light;
+          ctx.fillRect(ticketX, ticketY, ticketWidth, ticketHeight);
+        }
+
+        ctx.restore();
+      }
+    }
+
     const draw = (now: number) => {
       const progress = Math.min(1, (now - started) / duration);
       context.clearRect(0, 0, width, height);
 
-      // Background: fade from pure black to subtle celestial transparency
-      context.fillStyle = `rgba(0, 0, 0, ${Math.max(0.035, 1 - progress * 0.97)})`;
+      // Predominantly black throughout; celestial veil only late and soft.
+      context.fillStyle = `rgba(0, 0, 0, ${Math.max(0.04, 1 - progress * 0.92)})`;
       context.fillRect(0, 0, width, height);
 
-      const gather = ease(progress / 0.48);
-      const reveal = ease((progress - 0.35) / 0.65);
+      const gather = smoothstep(0, 0.3, progress);
+      const densityShift = smoothstep(0.34, 0.48, progress);
+      const outlinePhysical = smoothstep(0.44, 0.58, progress);
+      const radius =
+        finalRadius * smoothstep(0.44, 0.62, progress);
+      const centerGlow = smoothstep(0.5, 0.6, progress) *
+        (1 - smoothstep(0.72, 0.86, progress) * 0.55);
+      const rotateT = smoothstep(0.8, 0.93, progress);
+      const rotation = (finalRotation * Math.PI) / 180 * rotateT;
+      const driftAway = smoothstep(0.78, 0.96, progress);
 
-      // Phase 1: Reflection distortion & upward light stretch (0.00–0.22)
+      // Early reflection distortion (preserved from original).
       if (progress < 0.22) {
         const distort = ease(progress / 0.22);
         const distortRadius = ticketWidth * 0.35 * distort;
         const gradient = context.createRadialGradient(
-          centerX, centerY + 30 * (1 - distort), 0,
-          centerX, centerY, distortRadius,
+          centerX,
+          centerY + 30 * (1 - distort),
+          0,
+          centerX,
+          centerY,
+          distortRadius,
         );
         gradient.addColorStop(0, `rgba(255, 255, 255, ${distort * 0.07})`);
         gradient.addColorStop(0.55, `rgba(200, 195, 220, ${distort * 0.035})`);
@@ -274,128 +589,118 @@ function MorphCanvas({
         context.fillRect(0, 0, width, height);
       }
 
-      // Phase 2: Subtle central glow builds before outline (0.18–0.50)
-      if (progress > 0.18 && progress < 0.52) {
-        const glowPhase = ease((progress - 0.18) / 0.26);
-        const glowFade = progress > 0.44 ? 1 - ease((progress - 0.44) / 0.08) : 1;
-        const glowAlpha = glowPhase * glowFade * 0.24;
-        const gradient = context.createRadialGradient(
-          centerX, centerY, 0,
-          centerX, centerY, ticketWidth * 0.5,
+      // Stage D — soft diffuse center light (pearl → lavender → faint pink).
+      if (centerGlow > 0.01) {
+        const glow = context.createRadialGradient(
+          centerX,
+          centerY,
+          0,
+          centerX,
+          centerY,
+          ticketWidth * 0.42,
         );
-        gradient.addColorStop(0, `rgba(220, 210, 240, ${glowAlpha})`);
-        gradient.addColorStop(0.4, `rgba(200, 185, 230, ${glowAlpha * 0.4})`);
-        gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
-        context.fillStyle = gradient;
+        glow.addColorStop(0, `rgba(241, 233, 224, ${centerGlow * 0.28})`);
+        glow.addColorStop(0.35, `rgba(208, 185, 232, ${centerGlow * 0.16})`);
+        glow.addColorStop(0.7, `rgba(231, 180, 212, ${centerGlow * 0.07})`);
+        glow.addColorStop(1, "rgba(0, 0, 0, 0)");
+        context.fillStyle = glow;
         context.fillRect(0, 0, width, height);
       }
 
-      // Phase 3: Celestial environment aura expands (0.28+)
-      if (progress > 0.28) {
-        const glow = ease((progress - 0.28) / 0.32) * 0.32;
-        const gradient = context.createRadialGradient(
-          centerX, centerY, 0,
-          centerX, centerY, ticketWidth * 0.7,
-        );
-        gradient.addColorStop(0, `rgba(225, 205, 255, ${glow})`);
-        gradient.addColorStop(0.48, `rgba(190, 160, 230, ${glow * 0.32})`);
-        gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
-        context.fillStyle = gradient;
-        context.fillRect(0, 0, width, height);
-      }
-
-      // Phase 4: Ticket outline begins forming (0.34–0.56)
-      if (progress > 0.34) {
-        const outlinePhase = ease((progress - 0.34) / 0.22);
-        drawTicketPath(context, ticketX, ticketY, ticketWidth, ticketHeight, ticketRadius);
-        context.strokeStyle = `rgba(255, 255, 255, ${outlinePhase * 0.88})`;
-        context.lineWidth = 1.5;
-        context.stroke();
-
-        // Stub separator dashed line
-        context.setLineDash([4, 4]);
-        context.beginPath();
-        context.moveTo(stubDividerX, ticketY);
-        context.lineTo(stubDividerX, ticketY + ticketHeight);
-        context.strokeStyle = `rgba(200, 180, 255, ${outlinePhase * 0.48})`;
-        context.stroke();
-        context.setLineDash([]);
-      }
-
-      // Phase 5: Ticket interior surface appears (0.46+)
-      if (progress > 0.46) {
-        const interior = ease((progress - 0.46) / 0.54);
-        const ticketGradient = context.createLinearGradient(
-          ticketX,
-          ticketY,
-          ticketX + ticketWidth,
-          ticketY + ticketHeight,
-        );
-        ticketGradient.addColorStop(0, `rgba(240, 227, 204, ${interior * 0.82})`);
-        ticketGradient.addColorStop(0.28, `rgba(188, 180, 224, ${interior * 0.82})`);
-        ticketGradient.addColorStop(0.55, `rgba(247, 211, 220, ${interior * 0.82})`);
-        ticketGradient.addColorStop(0.78, `rgba(176, 226, 224, ${interior * 0.82})`);
-        ticketGradient.addColorStop(1, `rgba(218, 198, 160, ${interior * 0.88})`);
-        drawTicketPath(context, ticketX, ticketY, ticketWidth, ticketHeight, ticketRadius);
-        context.fillStyle = ticketGradient;
-        context.fill();
-      }
-
-      // Particles with progressive celestial colors
-      const color = getColor(progress);
+      // Particle target migration: gather → densify edges → lock / drift.
       for (const particle of particles) {
-        particle.velocityX = particle.velocityX * 0.85 + (particle.targetX - particle.x) * (0.045 + gather * 0.075);
-        particle.velocityY = particle.velocityY * 0.85 + (particle.targetY - particle.y) * (0.045 + gather * 0.075);
+        let aimX = particle.targetX;
+        let aimY = particle.targetY;
+        if (densityShift > 0 && particle.role !== "edge") {
+          // Interiors migrate toward the border while keeping some interior life.
+          const pull = densityShift * (particle.role === "interior" ? 0.72 : 0.35);
+          aimX = particle.targetX + (particle.edgeX - particle.targetX) * pull;
+          aimY = particle.targetY + (particle.edgeY - particle.targetY) * pull;
+        }
+        if (particle.role === "edge" || particle.role === "interior") {
+          // Lock toward the physical outline.
+          const lock = smoothstep(0.55, 0.78, progress);
+          aimX = aimX + (particle.edgeX - aimX) * lock;
+          aimY = aimY + (particle.edgeY - aimY) * lock;
+        }
+        if (particle.role === "drift" && driftAway > 0) {
+          aimX = particle.edgeX + (particle.driftX - particle.edgeX) * driftAway;
+          aimY = particle.edgeY + (particle.driftY - particle.edgeY) * driftAway;
+        }
+
+        const spring = 0.04 + gather * 0.08 + densityShift * 0.03;
+        particle.velocityX =
+          particle.velocityX * 0.84 + (aimX - particle.x) * spring;
+        particle.velocityY =
+          particle.velocityY * 0.84 + (aimY - particle.y) * spring;
         particle.x += particle.velocityX;
         particle.y += particle.velocityY;
-        particle.alpha = Math.min(1, particle.alpha + 0.038);
+        particle.alpha = Math.min(1, particle.alpha + 0.035);
+        particle.shimmer += 0.045;
+      }
+
+      context.save();
+      context.translate(centerX, centerY);
+      context.rotate(rotation);
+      context.translate(-centerX, -centerY);
+
+      // Extremely subtle forward scale as the object becomes physical.
+      const forward = 1 + smoothstep(0.55, 0.9, progress) * 0.012;
+      context.translate(centerX, centerY);
+      context.scale(forward, forward);
+      context.translate(-centerX, -centerY);
+
+      // Constructed ticket surface / details under the particles.
+      drawConstructedTicket(context, progress, radius);
+
+      // Early sharp outline (pre-radius) while particles still dominate.
+      if (outlinePhysical > 0.01 && progress < 0.72) {
+        const sharp = 1 - smoothstep(0.58, 0.72, progress);
+        drawTicketPath(
+          context,
+          ticketX,
+          ticketY,
+          ticketWidth,
+          ticketHeight,
+          radius,
+        );
+        context.strokeStyle = `rgba(255, 255, 255, ${outlinePhysical * sharp * 0.75})`;
+        context.lineWidth = 1.4;
+        context.stroke();
+      }
+
+      // Particles — majority lock to edges; drifters leave gently.
+      const color = getColor(progress);
+      const surfaceCover = smoothstep(0.62, 0.85, progress);
+      for (const particle of particles) {
+        const shimmer =
+          0.85 + 0.15 * Math.sin(particle.shimmer + particle.x * 0.02);
+        let alpha = particle.alpha * (0.55 + gather * 0.35) * shimmer;
+        if (particle.role !== "drift") {
+          // Edge particles remain readable; interiors fade as surface forms.
+          alpha *=
+            particle.role === "edge"
+              ? 1 - surfaceCover * 0.35
+              : 1 - surfaceCover * 0.82;
+        } else {
+          alpha *= 0.85 - driftAway * 0.35;
+        }
+        if (alpha < 0.02) continue;
         context.beginPath();
-        context.arc(particle.x, particle.y, particle.size * (1 + reveal * 0.4), 0, Math.PI * 2);
-        context.fillStyle = `rgba(${color}, ${particle.alpha * (0.58 + reveal * 0.42)})`;
+        context.arc(
+          particle.x,
+          particle.y,
+          particle.size * (1 + outlinePhysical * 0.25),
+          0,
+          Math.PI * 2,
+        );
+        context.fillStyle = `rgba(${color}, ${alpha})`;
         context.fill();
       }
 
-      // Phase 6: First iridescent light sweep (0.52–0.78)
-      if (progress > 0.52 && progress < 0.78) {
-        const sweep = (progress - 0.52) / 0.26;
-        context.save();
-        drawTicketPath(context, ticketX + 10, ticketY + 10, ticketWidth - 20, ticketHeight - 20, 7);
-        context.clip();
-        const light = context.createLinearGradient(
-          ticketX + ticketWidth * (sweep - 0.18),
-          ticketY,
-          ticketX + ticketWidth * (sweep + 0.18),
-          ticketY + ticketHeight,
-        );
-        light.addColorStop(0, "rgba(255,255,255,0)");
-        light.addColorStop(0.5, `rgba(255,255,255,${0.15 * reveal})`);
-        light.addColorStop(1, "rgba(255,255,255,0)");
-        context.fillStyle = light;
-        context.fillRect(ticketX, ticketY, ticketWidth, ticketHeight);
-        context.restore();
-      }
+      context.restore();
 
-      // Phase 7: Second subtle champagne sheen as details resolve (0.82–0.96)
-      if (progress > 0.82 && progress < 0.96) {
-        const sweep2 = (progress - 0.82) / 0.14;
-        context.save();
-        drawTicketPath(context, ticketX + 10, ticketY + 10, ticketWidth - 20, ticketHeight - 20, 7);
-        context.clip();
-        const light2 = context.createLinearGradient(
-          ticketX + ticketWidth * (1 - sweep2 + 0.12),
-          ticketY,
-          ticketX + ticketWidth * (1 - sweep2 - 0.12),
-          ticketY + ticketHeight,
-        );
-        light2.addColorStop(0, "rgba(255,255,255,0)");
-        light2.addColorStop(0.5, `rgba(255,240,220,${0.1 * ease(reveal)})`);
-        light2.addColorStop(1, "rgba(255,255,255,0)");
-        context.fillStyle = light2;
-        context.fillRect(ticketX, ticketY, ticketWidth, ticketHeight);
-        context.restore();
-      }
-
-      // Music handoff at 55% of morph
+      // Music handoff when the surface begins forming (existing hook).
       if (progress >= 0.55 && !handedOff.current) {
         handedOff.current = true;
         onMusicHandoff();
