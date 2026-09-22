@@ -203,7 +203,7 @@ test("manager crossfades, cancels stale exits, loops and remembers reverse navig
   const incoming = FakeAudio.instances.at(-1)!;
   assert.equal(first.paused, false);
   assert.equal(incoming.paused, false);
-  await new Promise((r) => setTimeout(r, 700));
+  await new Promise((r) => setTimeout(r, 1_650));
   assert.equal(first.paused, true);
   assert.equal(m.getScenePosition("scene02"), 61.37);
   m.enterScene("scene02");
@@ -224,4 +224,27 @@ test("manager crossfades, cancels stale exits, loops and remembers reverse navig
   assert.equal(first.paused, false);
   m.destroy();
   assert.equal(first.paused, true);
+});
+
+test("finale holds Song9 for the terminal starfield, then fades and resumes after scrolling back", async () => {
+  const m = new AudioManager(structuredClone(audioConfig), 0);
+  await m.unlock();
+  m.enterScene("scene09");
+  await new Promise((r) => setTimeout(r, 25));
+  const song9 = FakeAudio.instances.at(-1)!;
+  assert.equal(song9.paused, false);
+
+  m.beginFinale(4, 1);
+  await new Promise((r) => setTimeout(r, 250));
+  assert.equal(song9.paused, false);
+  await new Promise((r) => setTimeout(r, 850));
+  assert.equal(song9.paused, false);
+  await new Promise((r) => setTimeout(r, 4_050));
+  assert.equal(song9.paused, true);
+
+  m.exitFinale();
+  m.enterScene("scene09");
+  await new Promise((r) => setTimeout(r, 25));
+  assert.equal(song9.paused, false);
+  m.destroy();
 });

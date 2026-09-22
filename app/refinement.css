@@ -1000,3 +1000,198 @@
     letter-spacing: 0.17em;
   }
 }
+
+/* Main-experience-only inactivity atmosphere. It is visual guidance, never a modal. */
+.scroll-reminder {
+  position: fixed;
+  z-index: 8;
+  inset: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+  opacity: 0;
+  isolation: isolate;
+  transition: opacity 480ms ease, visibility 0s linear 520ms;
+}
+.scroll-reminder::before,
+.scroll-reminder::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+}
+.scroll-reminder::before {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(3, 1, 14, 0.62) 0%,
+      rgba(5, 2, 20, 0.46) 32%,
+      rgba(4, 3, 15, 0.2) 66%,
+      rgba(3, 2, 12, 0) 100%
+    ),
+    rgba(3, 1, 14, 0.075);
+  opacity: 0;
+  transform: translateY(-5%) scaleY(0.97);
+  transform-origin: top center;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  transition: opacity 520ms ease, transform 560ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.scroll-reminder::after {
+  background: radial-gradient(
+    ellipse at 50% 49%,
+    rgba(176, 157, 233, 0.06),
+    rgba(8, 4, 25, 0.015) 44%,
+    transparent 73%
+  );
+  opacity: 0;
+  transition: opacity 520ms ease;
+}
+.scroll-reminder.is-visible {
+  visibility: visible;
+  opacity: 1;
+  transition: opacity 480ms ease, visibility 0s linear 0s;
+}
+.scroll-reminder.is-visible::before {
+  opacity: 1;
+  transform: translateY(0) scaleY(1);
+}
+.scroll-reminder.is-visible::after {
+  opacity: 1;
+}
+.scroll-reminder__content {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 50%;
+  width: max-content;
+  max-width: calc(100vw - 40px);
+  color: #d9cdf7;
+  opacity: 0;
+  text-align: center;
+  transform: translate(-50%, calc(-50% + 9px)) scale(0.985);
+  transition: opacity 420ms ease, transform 480ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.scroll-reminder__content::before {
+  position: absolute;
+  z-index: -1;
+  inset: -45% -23%;
+  content: "";
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse,
+    rgba(185, 166, 242, 0.18) 0%,
+    rgba(222, 196, 147, 0.07) 34%,
+    transparent 73%
+  );
+  filter: blur(19px);
+  opacity: 0.72;
+}
+.scroll-reminder__content span {
+  display: block;
+  color: transparent;
+  background: linear-gradient(
+    105deg,
+    #c9b8ee 0%,
+    #e2d5ff 30%,
+    #e5c98f 47%,
+    #f0e3c7 53%,
+    #cdbdf2 70%,
+    #bca8e3 100%
+  );
+  background-position: 170% 50%;
+  background-size: 230% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  font-family: var(--serif);
+  font-size: clamp(25px, 4.7vw, 68px);
+  font-variation-settings:
+    "SOFT" 65,
+    "WONK" 1,
+    "opsz" 72;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  line-height: 1;
+  text-shadow: 0 0 24px rgba(191, 167, 246, 0.24);
+  white-space: nowrap;
+}
+.scroll-reminder.is-visible .scroll-reminder__content {
+  animation:
+    reminder-text-emerge 620ms cubic-bezier(0.22, 0.61, 0.36, 1) 130ms both,
+    reminder-text-breathe 2.1s ease-in-out 780ms infinite;
+}
+.scroll-reminder.is-visible .scroll-reminder__content::before {
+  animation: reminder-aura-breathe 2.1s ease-in-out 780ms infinite;
+}
+.scroll-reminder.is-visible .scroll-reminder__content span {
+  animation: reminder-shimmer 2.8s ease-in-out 760ms infinite;
+}
+@keyframes reminder-text-emerge {
+  from {
+    opacity: 0;
+    filter: blur(7px);
+    transform: translate(-50%, calc(-50% + 9px)) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+@keyframes reminder-text-breathe {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.035);
+  }
+}
+@keyframes reminder-aura-breathe {
+  0%,
+  100% {
+    opacity: 0.58;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 0.82;
+    transform: scale(1.03);
+  }
+}
+@keyframes reminder-shimmer {
+  0%,
+  57%,
+  100% {
+    background-position: 170% 50%;
+  }
+  72%,
+  84% {
+    background-position: -30% 50%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scroll-reminder,
+  .scroll-reminder::before,
+  .scroll-reminder::after,
+  .scroll-reminder__content {
+    transition-duration: 480ms;
+  }
+  .scroll-reminder.is-visible .scroll-reminder__content,
+  .scroll-reminder.is-visible .scroll-reminder__content::before,
+  .scroll-reminder.is-visible .scroll-reminder__content span {
+    animation: reminder-text-emerge 480ms ease 80ms both;
+  }
+}
+@supports not (backdrop-filter: blur(4px)) {
+  .scroll-reminder::before {
+    background:
+      linear-gradient(
+        180deg,
+        rgba(3, 1, 14, 0.62) 0%,
+        rgba(5, 2, 20, 0.46) 32%,
+        rgba(4, 3, 15, 0.2) 66%,
+        rgba(3, 2, 12, 0) 100%
+      ),
+      rgba(3, 1, 14, 0.12);
+  }
+}

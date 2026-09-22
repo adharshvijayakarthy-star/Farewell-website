@@ -39,14 +39,14 @@ export default function Ticket({
         }}
       >
         <span className="ticket-main">
-          <span className="ticket-brand">✦ CELESTIAL ELEGANCE ✦</span>
+          <span className="ticket-brand">✦ DISCO TILL DAWN ✦</span>
           <span className="ticket-emblem" aria-hidden="true">
             ✧
           </span>
           <span className="ticket-title">
-            DISCO
+            CELESTIAL
             <br />
-            <em>TILL DAWN</em>
+            <em>ELEGANCE</em>
           </span>
           <span className="ticket-bottom">
             <span>14 · 11 · 26</span>

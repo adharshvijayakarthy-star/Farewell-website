@@ -24,8 +24,9 @@ type Crossfade = {
   outgoing: SceneId[];
 };
 
-const NORMAL_CROSSFADE_SECONDS = 0.65;
-const MAJOR_CROSSFADE_SECONDS = 1.1;
+const NORMAL_CROSSFADE_SECONDS = 1.5;
+const MAJOR_CROSSFADE_SECONDS = 2.1;
+const INCOMING_CROSSFADE_DELAY_RATIO = 0.28;
 const MAJOR_CROSSFADE_TRANSITIONS = new Set([
   "scene00->scene01",
   "scene01->scene02",
@@ -60,6 +61,10 @@ export class AudioManager {
   private listeners = new Set<() => void>();
   private gestureCleanup?: () => void;
   private unlocking?: Promise<void>;
+  private finale = false;
+  private finaleFadeStarted = false;
+  private finaleStart?: ReturnType<typeof setTimeout>;
+  private finaleFadeSeconds = 5;
 
   constructor(
     readonly config: AudioConfig = audioConfig,
@@ -351,6 +356,61 @@ export class AudioManager {
     else c.stop = setTimeout(stop, seconds * 1000);
   }
 
+  /** Hold Song9 over the terminal starfield, then fade it out gently. */
+  beginFinale(seconds = 5, holdSeconds = 1) {
+    if (this.finale) return;
+    this.finale = true;
+    this.finaleFadeStarted = false;
+    this.finaleFadeSeconds = Math.max(4, seconds);
+    const startFade = () => {
+      this.finaleStart = undefined;
+      if (!this.finale) return;
+      this.finaleFadeStarted = true;
+      const channel = this.channels.get("scene09");
+      if (
+        this.active === "scene09" &&
+        channel &&
+        !channel.failed &&
+        !channel.audio.paused
+      )
+        this.fadeFinale(channel);
+      this.emit();
+    };
+    if (holdSeconds <= 0) startFade();
+    else this.finaleStart = setTimeout(startFade, holdSeconds * 1000);
+    this.emit();
+  }
+
+  /** Leave the final cue when the visitor scrolls back into the journey. */
+  exitFinale() {
+    if (!this.finale) return;
+    clearTimeout(this.finaleStart);
+    this.finaleStart = undefined;
+    this.finale = false;
+    this.finaleFadeStarted = false;
+    clearTimeout(this.channels.get("scene09")?.stop);
+    const channel = this.channels.get("scene09");
+    if (
+      this.active === "scene09" &&
+      channel &&
+      !channel.failed &&
+      !channel.audio.paused
+    ) {
+      const mobile =
+        typeof matchMedia === "function" &&
+        matchMedia("(max-width: 700px)").matches;
+      this.fade(
+        channel,
+        gain(
+          channel.config.volume *
+            (mobile ? (channel.config.mobileVolumeAdjustment ?? 1) : 1),
+        ),
+        Math.min(channel.config.fadeIn, channel.config.transitionDuration),
+      );
+    }
+    this.emit();
+  }
+
   private getChannel(id: SceneId) {
     const existing = this.channels.get(id);
     if (existing) return existing;
@@ -494,11 +554,19 @@ export class AudioManager {
           this.leaveScene(outgoing, crossfade.seconds);
       }
 
+      const incomingDelay =
+        crossfade && crossfade.outgoing.length > 0
+          ? crossfade.seconds * INCOMING_CROSSFADE_DELAY_RATIO
+          : 0;
       this.fade(
         channel,
         gain(c.volume * (mobile ? (c.mobileVolumeAdjustment ?? 1) : 1)),
-        seconds,
+        Math.max(0, seconds - incomingDelay),
+        incomingDelay,
       );
+
+      if (this.finale && this.finaleFadeStarted && id === "scene09")
+        this.fadeFinale(channel);
 
       if (crossfade) {
         const doneMs = Math.max(0, seconds) * 1000 + 20;
@@ -523,7 +591,7 @@ export class AudioManager {
     }
   }
 
-  private fade(c: Channel, value: number, seconds: number) {
+  private fade(c: Channel, value: number, seconds: number, delay = 0) {
     clearTimeout(c.stop);
     const now = this.context?.currentTime ?? 0;
     const p = c.gain.gain;
@@ -532,8 +600,49 @@ export class AudioManager {
       p.cancelScheduledValues(now);
       p.setValueAtTime(p.value, now);
     }
-    if (seconds <= 0) p.setValueAtTime(value, now);
-    else p.linearRampToValueAtTime(value, now + seconds);
+    const start = Number.isFinite(p.value) ? p.value : 0;
+    const startTime = now + Math.max(0, delay);
+    if (seconds <= 0) {
+      p.setValueAtTime(value, startTime);
+      return;
+    }
+
+    // A value curve keeps the transition soft at both ends instead of making
+    // a linear gain ramp feel like a hard edit. The segmented fallback keeps
+    // the same easing on older AudioParam implementations.
+    const steps = 24;
+    const easeInOut = (progress: number) =>
+      progress < 0.5
+        ? 2 * progress * progress
+        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+    p.setValueAtTime(start, startTime);
+    if (typeof p.setValueCurveAtTime === "function") {
+      const curve = new Float32Array(steps + 1);
+      for (let i = 0; i <= steps; i++) {
+        const progress = i / steps;
+        curve[i] = start + (value - start) * easeInOut(progress);
+      }
+      p.setValueCurveAtTime(curve, startTime, seconds);
+      return;
+    }
+    for (let i = 1; i <= steps; i++) {
+      const progress = i / steps;
+      p.linearRampToValueAtTime(
+        start + (value - start) * easeInOut(progress),
+        startTime + seconds * progress,
+      );
+    }
+  }
+
+  private fadeFinale(c: Channel) {
+    clearTimeout(c.stop);
+    this.memory.rememberScenePosition("scene09", c.audio.currentTime);
+    this.fade(c, 0, this.finaleFadeSeconds);
+    c.stop = setTimeout(() => {
+      c.audio.pause();
+      this.memory.rememberScenePosition("scene09", c.audio.currentTime);
+      this.emit();
+    }, this.finaleFadeSeconds * 1000);
   }
 
   private setGain(c: Channel, value: number) {
@@ -613,6 +722,7 @@ export class AudioManager {
   destroy() {
     this.generation++;
     clearTimeout(this.pending);
+    clearTimeout(this.finaleStart);
     clearInterval(this.timer);
     this.timer = undefined;
     this.detachGestureUnlock();
@@ -637,5 +747,8 @@ export class AudioManager {
     this.master = undefined;
     this.unlocked = false;
     this.autoplayBlocked = false;
+    this.finale = false;
+    this.finaleFadeStarted = false;
+    this.finaleStart = undefined;
   }
 }

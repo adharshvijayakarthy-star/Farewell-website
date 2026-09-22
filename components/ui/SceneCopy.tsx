@@ -87,12 +87,12 @@ export default function SceneCopy({
       <Beat cue={textCues.title} progress={p} kind="title">
         {(s) => (
           <>
-            <p className="eyebrow">{copy.brand}</p>
+            <p className="eyebrow">✦ DISCO TILL DAWN ✦</p>
             <h1>
-              <Letterform text="DISCO" entry={s.entrance} exit={s.exit} />
+              <Letterform text="CELESTIAL" entry={s.entrance} exit={s.exit} />
               <em>
                 <Letterform
-                  text="TILL DAWN"
+                  text="ELEGANCE"
                   entry={smooth((s.t - 0.035) / 0.2)}
                   exit={s.exit}
                 />

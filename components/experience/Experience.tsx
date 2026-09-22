@@ -11,6 +11,8 @@ import ChapterTransition from "../ui/ChapterTransition";
 import PresentationControls from "../ui/PresentationControls";
 import StaticInvitation from "../ui/StaticInvitation";
 import TrollOpening from "../ui/TrollOpening";
+import ScrollInactivityOverlay from "../ui/ScrollInactivityOverlay";
+import { textCues } from "@/lib/scene/sceneTransitions";
 const Canvas = dynamic(() => import("./ExperienceCanvas"), {
   ssr: false,
   loading: () => (
@@ -26,13 +28,14 @@ function Journey() {
     [reduced, setReduced] = useState(false),
     [paused, setPaused] = useState(false),
     [debug, setDebug] = useState(false);
-  const finished = useRef(false);
   const enterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { current, progress, activeScene } = useExperienceProgress(
     entered,
     paused,
     reduced,
   );
+  const isFinale = entered && progress >= textCues.goodbye.start;
+  const isTerminalStarfield = entered && progress >= 0.999;
   const fail = useCallback(() => setFallback(true), []);
   useEffect(() => {
     history.scrollRestoration = "manual";
@@ -64,17 +67,11 @@ function Journey() {
   }, [entered, fallback, paused]);
   useEffect(() => {
     // Scroll-driven chapters only after the visitor enters the journey.
-    if (entered) audio.enterScene(activeScene);
-  }, [audio, activeScene, entered]);
-  useEffect(() => {
-    if (progress >= 0.9995 && !finished.current) {
-      finished.current = true;
-      audio.pause();
-    } else if (progress < 0.998 && finished.current) {
-      finished.current = false;
-      audio.resume();
-    }
-  }, [audio, progress]);
+    if (!entered) return;
+    if (isTerminalStarfield) audio.beginFinale();
+    else audio.exitFinale();
+    audio.enterScene(activeScene);
+  }, [audio, activeScene, entered, isTerminalStarfield]);
   // Scene-state music handoff: Troll morph → real ticket / Scene 01 → Song1.
   // Must NOT be tied to the main ticket click.
   const handoffToScene01 = useCallback(() => {
@@ -132,6 +129,7 @@ function Journey() {
         />
         <div className="film-grain" aria-hidden="true" />
         <div className="vignette" aria-hidden="true" />
+        <ScrollInactivityOverlay active={entered && !isFinale} />
         {!entered && <Ticket entering={entering} onEnter={enter} fromMorph />}
         <SceneCopy progress={progress} entered={entered} />
         <ChapterTransition progress={progress} reduced={reduced} />

@@ -456,10 +456,10 @@ function MorphCanvas({
           ctx.textBaseline = "top";
           const titleSize = isMobile ? ticketWidth * 0.11 : ticketWidth * 0.103;
           ctx.font = `500 ${titleSize}px "Fraunces Variable", Georgia, serif`;
-          ctx.fillText("DISCO", ticketX + (isMobile ? 22 : 38), ticketY + ticketHeight * 0.32);
+          ctx.fillText("CELESTIAL", ticketX + (isMobile ? 22 : 38), ticketY + ticketHeight * 0.32);
           ctx.font = `400 ${titleSize * 0.86}px "Fraunces Variable", Georgia, serif`;
           ctx.fillText(
-            "TILL DAWN",
+            "ELEGANCE",
             ticketX + (isMobile ? 22 : 38),
             ticketY + ticketHeight * 0.32 + titleSize * 0.92,
           );
@@ -472,7 +472,7 @@ function MorphCanvas({
           ctx.font = `600 ${isMobile ? 8 : 10}px Manrope, Arial, sans-serif`;
           ctx.letterSpacing = "0.25em";
           ctx.fillText(
-            "✦ CELESTIAL ELEGANCE ✦",
+            "✦ DISCO TILL DAWN ✦",
             ticketX + (isMobile ? 22 : 38),
             ticketY + (isMobile ? 18 : 28),
           );
