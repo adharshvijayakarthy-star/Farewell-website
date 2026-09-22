@@ -148,7 +148,10 @@ export class AudioManager {
     )
       return;
     const audio = new Audio();
-    audio.preload = id === "scene00" ? "auto" : config.preloadPriority;
+    audio.preload = "auto";
+    audio.autoplay = false;
+    audio.muted = false;
+    audio.volume = 1;
     audio.src = this.resolveFile(config, audio);
     const onLoaded = () => {
       if (DEBUG) {
@@ -203,18 +206,31 @@ export class AudioManager {
 
   private attachGestureUnlock() {
     if (this.gestureCleanup || typeof window === "undefined") return;
-    const unlockHandler = () => {
-      this.log("interaction unlock occurred");
-      void this.unlock();
+    const unlockHandler = (event: Event) => {
+      if (
+        event.type === "pointerup" &&
+        (event as PointerEvent).pointerType === "mouse"
+      )
+        return;
+      if (
+        event.type === "pointerdown" &&
+        (event as PointerEvent).pointerType !== "mouse"
+      )
+        return;
+      this.unlockFromGesture(event);
     };
     const opts: AddEventListenerOptions = { passive: true, capture: true };
+    window.addEventListener("touchend", unlockHandler, opts);
+    window.addEventListener("pointerup", unlockHandler, opts);
+    window.addEventListener("mousedown", unlockHandler, opts);
     window.addEventListener("pointerdown", unlockHandler, opts);
-    window.addEventListener("touchstart", unlockHandler, opts);
     window.addEventListener("keydown", unlockHandler, opts);
     window.addEventListener("click", unlockHandler, opts);
     this.gestureCleanup = () => {
+      window.removeEventListener("touchend", unlockHandler, opts);
+      window.removeEventListener("pointerup", unlockHandler, opts);
+      window.removeEventListener("mousedown", unlockHandler, opts);
       window.removeEventListener("pointerdown", unlockHandler, opts);
-      window.removeEventListener("touchstart", unlockHandler, opts);
       window.removeEventListener("keydown", unlockHandler, opts);
       window.removeEventListener("click", unlockHandler, opts);
     };
@@ -241,29 +257,118 @@ export class AudioManager {
     }
   }
 
+  /** Start the active track inside the trusted gesture before awaiting anything. */
+  private unlockFromGesture(event: Event) {
+    if (this.unlocking || this.unlocked || !this.active) return;
+    this.unlocking = true;
+    this.init();
+    if (!this.available) {
+      this.unlocking = false;
+      return;
+    }
+
+    const pointerType =
+      typeof PointerEvent !== "undefined" && event instanceof PointerEvent
+        ? event.pointerType
+        : undefined;
+    if (DEBUG)
+      console.info("[AUDIO MOBILE GESTURE]", {
+        event: event.type,
+        pointerType,
+        userActive: navigator.userActivation?.isActive,
+        hadBeenActive: navigator.userActivation?.hasBeenActive,
+      });
+
+    try {
+      this.ensureAudioGraph();
+      const channel = this.channels.get(this.active);
+      if (!channel || channel.failed) throw new Error("Active audio unavailable");
+
+      const resumePromise =
+        this.context?.state === "suspended"
+          ? this.context.resume()
+          : Promise.resolve();
+      const playPromise = channel.audio.play();
+
+      if (DEBUG)
+        console.info("[AUDIO MOBILE START]", {
+          contextState: this.context?.state,
+          paused: channel.audio.paused,
+          readyState: channel.audio.readyState,
+        });
+
+      Promise.allSettled([resumePromise, playPromise]).then(
+        ([resumeResult, playResult]) => {
+          const resumeError =
+            resumeResult.status === "rejected" ? resumeResult.reason : undefined;
+          const playError =
+            playResult.status === "rejected" ? playResult.reason : undefined;
+          if (resumeError) this.logMobileFailure("RESUME", resumeError);
+          if (playError) this.logMobileFailure("PLAY", playError);
+
+          if (
+            !resumeError &&
+            !playError &&
+            this.context?.state === "running" &&
+            !channel.audio.paused
+          ) {
+            this.unlocked = true;
+            this.paused = false;
+            this.autoplayBlocked = false;
+            this.timer ??= setInterval(() => this.tick(), 30);
+            this.emit();
+            void this.play(this.active!, ++this.generation);
+          }
+          this.unlocking = false;
+          this.syncGestureUnlock();
+        },
+      );
+    } catch (error) {
+      this.logMobileFailure("PLAY", error);
+      this.unlocking = false;
+      this.syncGestureUnlock();
+    }
+  }
+
+  private ensureAudioGraph() {
+    if (!this.context) {
+      const AudioCtx =
+        (typeof window !== "undefined" &&
+          (window.AudioContext ||
+            (window as unknown as { webkitAudioContext: typeof AudioContext })
+              .webkitAudioContext)) ||
+        globalThis.AudioContext;
+      this.context = new AudioCtx();
+      this.master = this.context.createGain();
+      this.master.gain.value = this.volume;
+      this.master.connect(this.context.destination);
+      this.log("AudioContext created", this.context.state);
+    }
+    if (this.active && !this.channels.has(this.active)) this.getChannel(this.active);
+  }
+
+  private logMobileFailure(kind: "RESUME" | "PLAY", error: unknown) {
+    if (!DEBUG) return;
+    const detail = error instanceof Error ? error : new Error(String(error));
+    console.warn(`[AUDIO MOBILE ${kind} FAILED]`, {
+      name: detail.name,
+      message: detail.message,
+    });
+  }
+
   private async performUnlock() {
     this.init();
     if (!this.available) return;
 
     try {
-      if (!this.context) {
-        const AudioCtx =
-          (typeof window !== "undefined" &&
-            (window.AudioContext ||
-              (window as unknown as { webkitAudioContext: typeof AudioContext })
-                .webkitAudioContext)) ||
-          globalThis.AudioContext;
-        this.context = new AudioCtx();
-        this.master = this.context.createGain();
-        this.master.gain.value = this.volume;
-        this.master.connect(this.context.destination);
-        this.log("AudioContext created", this.context.state);
+      this.ensureAudioGraph();
+      const context = this.context;
+      if (!context) return;
+      if (context.state === "suspended") {
+        await context.resume();
+        this.log("AudioContext resume", context.state);
       }
-      if (this.context.state === "suspended") {
-        await this.context.resume();
-        this.log("AudioContext resume", this.context.state);
-      }
-      const isRunning = this.context.state === "running";
+      const isRunning = context.state === "running";
       // Context may be running while media play() is still blocked.
       // Do NOT treat context-running as "playback unlocked" for gesture cleanup.
       this.unlocked = isRunning;
@@ -429,8 +534,11 @@ export class AudioManager {
     if (preloaded) this.preloaders.delete(id);
 
     const file = this.resolveFile(config, audio);
+    audio.preload = "auto";
+    audio.autoplay = false;
+    audio.muted = false;
+    audio.volume = 1;
     if (!audio.src) {
-      audio.preload = config.preloadPriority;
       audio.src = file;
     }
     // HTML autoplay attribute is unreliable with Web Audio routing; playback
