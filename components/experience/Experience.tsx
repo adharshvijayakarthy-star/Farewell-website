@@ -54,9 +54,9 @@ function Journey() {
     };
   }, []);
   useEffect(() => {
-    // Troll is the first application state — Song0 attempts immediately.
+    // Troll is the first application state. The first real gesture unlocks
+    // the pending Song0 channel without leaving an autoplay resume pending.
     audio.enterScene("scene00");
-    void audio.unlock();
   }, [audio]);
   useEffect(() => {
     document.body.style.overflow =
@@ -85,9 +85,6 @@ function Journey() {
     if (entering || entered) return;
     setEntering(true);
     // Visual/scroll entry only. Song1 is already active from the Troll handoff.
-    // unlock() is a safety retry if autoplay was still blocked — it does not
-    // change the active music scene.
-    void audio.unlock();
     enterTimer.current = setTimeout(
       () => {
         setEntered(true);

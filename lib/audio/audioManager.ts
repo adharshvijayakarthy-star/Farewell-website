@@ -60,7 +60,7 @@ export class AudioManager {
   private disabled = new Set<SceneId>();
   private listeners = new Set<() => void>();
   private gestureCleanup?: () => void;
-  private unlocking?: Promise<void>;
+  private unlocking = false;
   private finale = false;
   private finaleFadeStarted = false;
   private finaleStart?: ReturnType<typeof setTimeout>;
@@ -232,11 +232,13 @@ export class AudioManager {
   }
 
   async unlock() {
-    if (this.unlocking) return this.unlocking;
-    this.unlocking = this.performUnlock().finally(() => {
-      this.unlocking = undefined;
-    });
-    return this.unlocking;
+    if (this.unlocking) return;
+    this.unlocking = true;
+    try {
+      await this.performUnlock();
+    } finally {
+      this.unlocking = false;
+    }
   }
 
   private async performUnlock() {
@@ -261,8 +263,7 @@ export class AudioManager {
         await this.context.resume();
         this.log("AudioContext resume", this.context.state);
       }
-      const isRunning =
-        !this.context.state || this.context.state === "running";
+      const isRunning = this.context.state === "running";
       // Context may be running while media play() is still blocked.
       // Do NOT treat context-running as "playback unlocked" for gesture cleanup.
       this.unlocked = isRunning;

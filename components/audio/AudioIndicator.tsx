@@ -10,7 +10,7 @@ export function AudioIndicator() {
   );
   const available = useSyncExternalStore(
     audio.subscribe,
-    () => audio.available && audio.ready,
+    () => audio.available,
     () => false,
   );
   if (!available) return null;

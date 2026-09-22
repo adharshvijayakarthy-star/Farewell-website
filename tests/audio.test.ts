@@ -128,6 +128,7 @@ class FakeGain {
   disconnect() {}
 }
 class FakeAudioContext {
+  state: AudioContextState = "suspended";
   currentTime = 0;
   destination = {};
   createGain() {
@@ -136,7 +137,9 @@ class FakeAudioContext {
   createMediaElementSource() {
     return { connect() {}, disconnect() {} };
   }
-  async resume() {}
+  async resume() {
+    this.state = "running";
+  }
   async close() {}
 }
 class FakeAudio extends EventTarget {
