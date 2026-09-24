@@ -64,7 +64,7 @@ export class AudioManager {
   private finale = false;
   private finaleFadeStarted = false;
   private finaleStart?: ReturnType<typeof setTimeout>;
-  private finaleFadeSeconds = 5;
+  private finaleFadeSeconds = 2.5;
 
   constructor(
     readonly config: AudioConfig = audioConfig,
@@ -463,11 +463,11 @@ export class AudioManager {
   }
 
   /** Hold Song9 over the terminal starfield, then fade it out gently. */
-  beginFinale(seconds = 5, holdSeconds = 1) {
+  beginFinale(seconds = 2.5, holdSeconds = 1) {
     if (this.finale) return;
     this.finale = true;
     this.finaleFadeStarted = false;
-    this.finaleFadeSeconds = Math.max(4, seconds);
+    this.finaleFadeSeconds = Math.max(0, seconds);
     const startFade = () => {
       this.finaleStart = undefined;
       if (!this.finale) return;
@@ -787,6 +787,55 @@ export class AudioManager {
       clearTimeout(c.stop);
       this.memory.rememberScenePosition(id, c.audio.currentTime);
       c.audio.pause();
+    }
+    this.emit();
+  }
+
+  /** Clear session playback state and restart the Troll's Song0 opening. */
+  restartFromOpening() {
+    const generation = ++this.generation;
+    clearTimeout(this.pending);
+    clearTimeout(this.finaleStart);
+    this.pending = undefined;
+    this.finaleStart = undefined;
+    this.active = "scene00";
+    this.paused = false;
+    this.autoplayBlocked = false;
+    this.finale = false;
+    this.finaleFadeStarted = false;
+    this.finaleFadeSeconds = 2.5;
+    this.memory.positions.clear();
+    this.memory.looped.clear();
+
+    for (const [id, channel] of this.channels) {
+      clearTimeout(channel.stop);
+      channel.stop = undefined;
+      channel.cancelLoad?.();
+      channel.cancelLoad = undefined;
+      channel.audio.pause();
+      try {
+        channel.audio.currentTime = getSceneStartPosition(channel.config);
+      } catch {
+        // A not-yet-ready media element will begin at the reset position in play().
+      }
+      this.setGain(channel, 0);
+      this.memory.reset(id);
+    }
+    for (const audio of this.preloaders.values()) {
+      audio.pause();
+      try {
+        audio.currentTime = 0;
+      } catch {
+        // Preloaded media may not have metadata yet.
+      }
+    }
+
+    if (this.unlocked) {
+      if (this.context?.state === "suspended") void this.context.resume();
+      void this.play("scene00", generation);
+    } else {
+      this.syncGestureUnlock();
+      void this.unlock();
     }
     this.emit();
   }

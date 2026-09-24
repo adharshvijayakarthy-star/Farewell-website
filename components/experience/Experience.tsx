@@ -19,7 +19,9 @@ const Canvas = dynamic(() => import("./ExperienceCanvas"), {
     <div className="celestial-loading">✦ CELESTIAL ELEGANCE ✦</div>
   ),
 });
-function Journey() {
+const TERMINAL_SETTLE_MS = 1_600;
+
+function Journey({ onRestart }: { onRestart: () => void }) {
   const audio = useAudio();
   const [entered, setEntered] = useState(false),
     [trollComplete, setTrollComplete] = useState(false),
@@ -27,7 +29,8 @@ function Journey() {
     [fallback, setFallback] = useState(false),
     [reduced, setReduced] = useState(false),
     [paused, setPaused] = useState(false),
-    [debug, setDebug] = useState(false);
+    [debug, setDebug] = useState(false),
+    [terminalSettled, setTerminalSettled] = useState(false);
   const enterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { current, progress, activeScene } = useExperienceProgress(
     entered,
@@ -72,6 +75,16 @@ function Journey() {
     else audio.exitFinale();
     audio.enterScene(activeScene);
   }, [audio, activeScene, entered, isTerminalStarfield]);
+  useEffect(() => {
+    if (!isTerminalStarfield) {
+      setTerminalSettled(false);
+      return;
+    }
+    // Song9 holds for one second, then fades over 2.5 seconds. Let the
+    // terminal image settle briefly before revealing the restart control.
+    const timer = setTimeout(() => setTerminalSettled(true), TERMINAL_SETTLE_MS);
+    return () => clearTimeout(timer);
+  }, [isTerminalStarfield]);
   // Scene-state music handoff: Troll morph → real ticket / Scene 01 → Song1.
   // Must NOT be tied to the main ticket click.
   const handoffToScene01 = useCallback(() => {
@@ -95,12 +108,13 @@ function Journey() {
     );
   }
   function restart() {
-    if (enterTimer.current) clearTimeout(enterTimer.current);
-    audio.pause();
-    setPaused(false);
-    setEntering(false);
-    setEntered(false);
+    if (enterTimer.current) {
+      clearTimeout(enterTimer.current);
+      enterTimer.current = null;
+    }
+    audio.restartFromOpening();
     window.scrollTo(0, 0);
+    onRestart();
   }
   if (fallback) return <StaticInvitation />;
   if (!trollComplete)
@@ -143,6 +157,16 @@ function Journey() {
             <i style={{ transform: `scaleX(${progressToScroll(progress)})` }} />
           </div>
         )}
+        {terminalSettled && (
+          <button
+            type="button"
+            className="start-over-button"
+            onClick={restart}
+            aria-label="Start the experience over from the beginning"
+          >
+            START OVER
+          </button>
+        )}
         {progress < 0.998 && <AudioIndicator />}
         {debug && (
           <PresentationControls
@@ -165,9 +189,12 @@ function Journey() {
   );
 }
 export default function Experience() {
+  const [session, setSession] = useState(0);
+  const restartSession = useCallback(() => setSession((current) => current + 1), []);
+
   return (
     <AudioManagerProvider>
-      <Journey />
+      <Journey key={session} onRestart={restartSession} />
     </AudioManagerProvider>
   );
 }

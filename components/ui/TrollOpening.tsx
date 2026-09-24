@@ -47,12 +47,14 @@ function InvitationLine({
   text,
   speed = 55,
   dissolving = false,
+  showCursor = false,
   className = "",
   fontSize,
 }: {
   text: string;
   speed?: number;
   dissolving?: boolean;
+  showCursor?: boolean;
   className?: string;
   fontSize?: string;
 }) {
@@ -76,6 +78,19 @@ function InvitationLine({
     fontWeight: 600,
     letterSpacing: "0.12em",
   };
+  const typedText = showCursor && displayed.length > 0 ? (
+    <>
+      {displayed.slice(0, -1)}
+      <span className="troll-current-character" key={displayed.length}>
+        {displayed.slice(-1)}
+      </span>
+      {displayed.length < text.length && (
+        <span className="troll-caret" aria-hidden="true" />
+      )}
+    </>
+  ) : (
+    displayed
+  );
 
   return (
     <div className={`troll-line-wrap ${className}`}>
@@ -83,7 +98,7 @@ function InvitationLine({
       <div className="troll-fog troll-fog-right" aria-hidden="true" />
       <div className="troll-fog troll-fog-floor" aria-hidden="true" />
       <div className={`troll-line ${dissolving ? "troll-dissolve" : ""}`} style={style}>
-        {displayed}
+        {typedText}
       </div>
       <div
         className={`troll-reflection ${dissolving ? "troll-dissolve" : ""}`}
@@ -812,8 +827,8 @@ export default function TrollOpening({
   useEffect(() => {
     if (stage !== "troll") return;
     const first = setTimeout(() => setShowTrollLine(true), 60);
-    const answer = setTimeout(() => setShowTrollAnswer(true), 1_350);
-    const scroll = setTimeout(() => setShowScroll(true), 2_600);
+    const answer = setTimeout(() => setShowTrollAnswer(true), 2_400);
+    const scroll = setTimeout(() => setShowScroll(true), 5_000);
     return () => {
       clearTimeout(first);
       clearTimeout(answer);
@@ -885,12 +900,22 @@ export default function TrollOpening({
         <div className="troll-phase troll-reveal" aria-live="polite">
           {showTrollLine && (
             <div className={dissolving ? "troll-dissolve" : ""}>
-              <InvitationLine text="YOU ACTUALLY THOUGHT THAT WAS IT?" speed={27} dissolving={dissolving} />
+              <InvitationLine
+                text="YOU ACTUALLY THOUGHT THAT WAS IT?"
+                speed={52}
+                dissolving={dissolving}
+                showCursor
+              />
             </div>
           )}
           {showTrollAnswer && (
             <div className={dissolving ? "troll-dissolve" : "troll-fade-up"}>
-              <InvitationLine text="WAIT UNTIL YOU SEE WHAT'S BEHIND THIS." speed={24} dissolving={dissolving} />
+              <InvitationLine
+                text="WAIT UNTIL YOU SEE WHAT'S BEHIND THIS."
+                speed={50}
+                dissolving={dissolving}
+                showCursor
+              />
             </div>
           )}
           {showScroll && (
